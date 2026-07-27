@@ -25,7 +25,7 @@ const Login = ({ onLoginSuccess }) => {
     setIsLoading(true); 
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
