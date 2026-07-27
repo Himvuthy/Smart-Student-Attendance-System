@@ -1,0 +1,739 @@
+  import React, { useState, useEffect } from 'react';
+  import { 
+    Fingerprint, Bell, LayoutDashboard, Database, BookOpen, 
+    Cpu, FileText, Terminal, Settings, LogOut, 
+    Users, CheckCircle, XCircle, BarChart3, LineChart, Sun, Moon,
+    CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart, Info
+  } from 'lucide-react';
+
+  const API_URL = "https://backend-testing-production-e05f.up.railway.app";
+
+  const AdminDashboard = ({ onLogout }) => {
+    // --- UI STATES ---
+    const [activeView, setActiveView] = useState(() => {
+      return localStorage.getItem('adminActiveView') || 'dashboard';
+    });
+
+    useEffect(() => {
+      if (activeView) {
+        localStorage.setItem('adminActiveView', activeView);
+      }
+    }, [activeView]);
+    
+    const [isDark, setIsDark] = useState(() => {
+      return localStorage.getItem('appTheme') === 'dark';
+    });
+
+    useEffect(() => {
+      localStorage.setItem('appTheme', isDark ? 'dark' : 'light');
+    }, [isDark]);
+
+    // --- SQL DATA STATES ---
+    const [stats, setStats] = useState({
+      totalStudents: '...',
+      activeClasses: '...',
+      presentToday: '...',
+      absentToday: '...'
+    });
+    const [isLoading, setIsLoading] = useState(true);
+    
+    const [users, setUsers] = useState([]);
+    const [isUsersLoading, setIsUsersLoading] = useState(false);
+
+    // Fetch Dashboard Stats
+    useEffect(() => {
+      const fetchAdminStats = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/admin/stats`);
+          const data = await response.json();
+          if (data.success) {
+            setStats({
+              totalStudents: data.totalStudents,
+              activeClasses: data.classes,
+              presentToday: data.present,
+              absentToday: data.absent
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch admin stats:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchAdminStats();
+    }, []);
+
+    // 🔴 DYNAMIC FETCHING LOGIC
+    useEffect(() => {
+      if (activeView === 'database') {
+        fetchUsers('users'); // Fetches everyone
+      } else if (activeView === 'biometric') {
+        fetchUsers('students'); // Fetches only students with full details
+      }
+    }, [activeView]);
+
+    const fetchUsers = async (endpoint) => {
+      setIsUsersLoading(true);
+      try {
+        const response = await fetch(`/api/${endpoint}`);
+        const data = await response.json();
+        if (data.success) setUsers(data.users);
+      } catch (error) {
+        console.error(`Failed to fetch ${endpoint}:`, error);
+      } finally {
+        setIsUsersLoading(false);
+      }
+    };
+
+    const handleDeleteUser = async (userId, userName) => {
+      if (!window.confirm(`Are you sure you want to permanently delete ${userName}?`)) return;
+      try {
+        const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) {
+          setUsers(users.filter(user => user.id !== userId)); 
+        } else {
+          alert("Failed to delete user.");
+        }
+      } catch (error) {
+        console.error("Delete error:", error);
+      }
+    };
+
+    const handleEditUser = async (userId, currentName, currentRole) => {
+      const newName = window.prompt("Enter new name for this user:", currentName);
+      if (!newName || newName === currentName) return;
+
+      try {
+        const response = await fetch(`/api/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName, role: currentRole })
+        });
+        const data = await response.json();
+        if (data.success) {
+          setUsers(users.map(user => user.id === userId ? { ...user, name: newName } : user));
+        }
+      } catch (error) {
+        console.error("Edit error:", error);
+      }
+    };
+
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' 
+    }).toUpperCase();
+
+    // --- DYNAMIC THEME CLASSES ---
+    const appBg = isDark ? "bg-black" : "bg-[#f8fafc]";
+    const surfaceBg = isDark ? "bg-black" : "bg-white";
+    const borderColor = isDark ? "border-white/10" : "border-[#f1f5f9]";
+    const borderSubColor = isDark ? "border-white/5" : "border-gray-100";
+    const textColor = isDark ? "text-white" : "text-gray-800";
+    const mutedText = isDark ? "text-gray-400" : "text-slate-500";
+    const subBg = isDark ? "bg-white/5" : "bg-gray-50";
+    const hoverBg = isDark ? "hover:bg-white/5" : "hover:bg-gray-50";
+    
+    const navActiveBg = isDark ? "bg-white/10 text-cyan-400" : "bg-indigo-50 text-indigo-600";
+    const navInactiveBg = isDark ? "text-gray-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-gray-50 hover:text-indigo-600";
+    const brandColor = isDark ? "text-cyan-400" : "text-indigo-600";
+    
+    const cardStyle = `${surfaceBg} rounded-2xl border ${borderColor} p-6 flex flex-col ${isDark ? 'shadow-[0_0_15px_rgba(255,255,255,0.02)]' : 'shadow-sm'}`;
+    const inputStyle = `w-full p-2.5 text-sm border rounded-lg focus:outline-none transition-colors ${isDark ? 'bg-[#111] border-white/20 text-white focus:border-cyan-400 [&>option]:bg-black [&>option]:text-white' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-indigo-500 [&>option]:bg-white [&>option]:text-gray-800'}`;
+
+    const getRoleBadgeColor = (role) => {
+      const roleCheck = String(role).toLowerCase(); 
+      if (roleCheck === 'admin' || roleCheck === '1') {
+        return isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-100 text-red-700';
+      } 
+      if (roleCheck === 'teacher' || roleCheck === '2') {
+        return isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-100 text-green-700';
+      } 
+      return isDark ? 'bg-cyan-500/10 text-cyan-400' : 'bg-cyan-100 text-cyan-700';
+    };
+
+    const viewTitles = {
+      dashboard: 'Admin Dashboard',
+      database: 'User Database',
+      biometric: 'Biometric Enrollment',
+      timetable: 'Schedule / Time Table Management',
+      classes: 'Class Management',
+      hardware: 'Hardware Scanners',
+      reports: 'Reports & Backups',
+      logs: 'System Logs',
+      settings: 'System Settings'
+    };
+
+    return (
+      <div className={`flex h-screen overflow-hidden ${appBg} ${textColor} font-sans transition-colors duration-500 animate-in fade-in duration-500`}>
+        
+        <aside className={`w-64 ${surfaceBg} border-r ${borderColor} flex flex-col z-20 transition-colors duration-500 shrink-0`}>
+          <div className={`h-20 flex items-center px-6 border-b ${borderColor}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center border shadow-sm transition-all duration-500 ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
+                <Fingerprint className={`w-5 h-5 transition-colors duration-500 ${isDark ? 'text-cyan-400' : 'text-indigo-600'}`} />
+              </div>
+              <h1 className="text-lg font-black tracking-tight">Smart<span className={brandColor}>Attendance</span></h1>
+            </div>
+          </div>
+          
+          <nav className="flex-1 overflow-y-auto py-6 px-3 custom-scrollbar flex flex-col">
+            <p className={`px-4 text-xs font-semibold ${mutedText} uppercase tracking-wider mb-2`}>Main Menu</p>
+            <ul className="space-y-1 mb-8">
+              <li>
+                <button onClick={() => setActiveView('dashboard')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'dashboard' ? navActiveBg : navInactiveBg}`}>
+                  <LayoutDashboard className={`w-5 h-5 mr-3 ${activeView === 'dashboard' ? '' : 'opacity-70'}`} /> Dashboard
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('database')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'database' ? navActiveBg : navInactiveBg}`}>
+                  <Database className={`w-5 h-5 mr-3 ${activeView === 'database' ? '' : 'opacity-70'}`} /> User Database
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('biometric')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'biometric' ? navActiveBg : navInactiveBg}`}>
+                  <Fingerprint className={`w-5 h-5 mr-3 ${activeView === 'biometric' ? '' : 'opacity-70'}`} /> Biometric Enrollment
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('timetable')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'timetable' ? navActiveBg : navInactiveBg}`}>
+                  <CalendarDays className={`w-5 h-5 mr-3 ${activeView === 'timetable' ? '' : 'opacity-70'}`} /> Time Table
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('classes')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'classes' ? navActiveBg : navInactiveBg}`}>
+                  <BookOpen className={`w-5 h-5 mr-3 ${activeView === 'classes' ? '' : 'opacity-70'}`} /> Class Management
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('hardware')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'hardware' ? navActiveBg : navInactiveBg}`}>
+                  <Cpu className={`w-5 h-5 mr-3 ${activeView === 'hardware' ? '' : 'opacity-70'}`} /> Hardware Scanners
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('reports')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'reports' ? navActiveBg : navInactiveBg}`}>
+                  <FileText className={`w-5 h-5 mr-3 ${activeView === 'reports' ? '' : 'opacity-70'}`} /> Reports & Backup
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setActiveView('logs')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'logs' ? navActiveBg : navInactiveBg}`}>
+                  <Terminal className={`w-5 h-5 mr-3 ${activeView === 'logs' ? '' : 'opacity-70'}`} /> System Logs
+                </button>
+              </li>
+            </ul>
+
+            <p className={`px-4 text-xs font-semibold ${mutedText} uppercase tracking-wider mb-2`}>System</p>
+            <ul className="space-y-1">
+              <li>
+                <button onClick={() => setActiveView('settings')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'settings' ? navActiveBg : navInactiveBg}`}>
+                  <Settings className={`w-5 h-5 mr-3 ${activeView === 'settings' ? '' : 'opacity-70'}`} /> Settings
+                </button>
+              </li>
+            </ul>
+
+            <div className={`flex items-center justify-between px-2 pt-4 border-t ${borderSubColor} mt-auto`}>
+              <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                <LogOut size={18} />
+              </button>
+              <button className={`p-2 rounded-lg transition-colors ${navInactiveBg}`}>
+                <Info size={18} />
+              </button>
+              <button onClick={() => setIsDark(!isDark)} className={`p-2 rounded-lg transition-colors ${navInactiveBg}`}>
+                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <button onClick={() => setActiveView('settings')} className={`p-2 rounded-lg transition-colors ${navInactiveBg}`}>
+                <Settings size={18} />
+              </button>
+            </div>
+          </nav>
+        </aside>
+
+        <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+          <header className={`h-20 ${surfaceBg} border-b ${borderColor} flex items-center justify-between px-8 z-10 transition-colors duration-500 shrink-0`}>
+            <div className="flex items-center gap-4 text-sm font-medium">
+              <span className={`${brandColor} font-bold text-lg`}>{viewTitles[activeView]}</span>
+            </div>
+            
+            <div className="flex items-center gap-5">
+              <span className={`${mutedText} uppercase tracking-wider text-xs font-semibold hidden md:block`}>{currentDate}</span>
+              <button className={`${mutedText} hover:${brandColor} transition relative p-2 ml-2`}>
+                <Bell size={20} />
+                <span className={`absolute top-1.5 right-1.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 border-2 ${isDark ? 'border-black' : 'border-white'}`}></span>
+              </button>
+              <div className={`h-8 w-px ${borderColor} mx-2`}></div>
+              <div className="flex items-center gap-3 cursor-pointer">
+                <img src="https://ui-avatars.com/api/?name=System+Admin&background=6366f1&color=fff" alt="Admin" className={`h-9 w-9 rounded-full shadow-sm border ${borderColor}`} />
+                <div className="hidden md:block text-sm">
+                  <p className="font-bold leading-none">System Admin</p>
+                  <p className={`text-xs ${brandColor} mt-1 font-semibold uppercase tracking-wider`}>ADMIN</p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <div className={`flex-1 overflow-y-auto p-6 md:p-8 ${appBg} transition-colors duration-500`}>
+            <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {activeView === 'dashboard' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
+                    <div className={`${cardStyle} justify-center`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className={`text-xs ${mutedText} font-bold uppercase tracking-wider`}>Total Students</p>
+                        <Users className={`w-4 h-4 ${mutedText}`} />
+                      </div>
+                      <p className="text-3xl font-bold">{isLoading ? '...' : (stats.totalStudents || '0')}</p>
+                    </div>
+                    <div className={`${cardStyle} justify-center`}>
+                      <div className="flex justify-between items-center mb-2"><p className={`text-xs ${mutedText} font-bold uppercase tracking-wider`}>Active Classes</p><BookOpen className={`w-4 h-4 ${mutedText}`} /></div>
+                      <p className="text-3xl font-bold">{isLoading ? '...' : (stats.activeClasses || '42')}</p>
+                    </div>
+                    <div className={`${cardStyle} justify-center`}>
+                      <div className="flex justify-between items-center mb-2"><p className={`text-xs ${mutedText} font-bold uppercase tracking-wider`}>Enrollment</p><CheckCircle className="w-4 h-4 text-green-500" /></div>
+                      <p className="text-3xl font-bold text-green-500">{isLoading ? '...' : (stats.presentToday || '1,150')}</p>
+                    </div>
+                    <div className={`${cardStyle} justify-center`}>
+                      <div className="flex justify-between items-center mb-2"><p className={`text-xs ${mutedText} font-bold uppercase tracking-wider`}>Pending Enrollment</p><XCircle className="w-4 h-4 text-red-500" /></div>
+                      <p className="text-3xl font-bold text-red-500">{isLoading ? '...' : (stats.absentToday || '100')}</p>
+                    </div>
+                  </div>
+
+                  <div className={`${cardStyle} mb-6`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <h3 className="font-bold text-lg">24-Week Attendance History</h3>
+                        <p className={`text-xs ${mutedText}`}>Overall attendance averages across all classes for the last 24 weeks.</p>
+                      </div>
+                    </div>
+                    <div className={`relative h-64 w-full flex-1 flex flex-col items-center justify-center border border-dashed rounded-xl ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                      <LineChart className={`w-10 h-10 mb-3 opacity-50 ${mutedText}`} />
+                      <p className={`${mutedText} font-medium`}>24-Point Line Graph Component Goes Here</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <h3 className="font-bold text-lg">Daily Chart</h3>
+                          <p className={`text-xs ${mutedText}`}>Today's check-ins.</p>
+                        </div>
+                      </div>
+                      <div className={`relative h-56 w-full flex-1 flex flex-col items-center justify-center border border-dashed rounded-xl ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                        <BarChart3 className={`w-10 h-10 mb-3 opacity-50 ${mutedText}`} />
+                        <p className={`${mutedText} font-medium`}>Daily Bar Component</p>
+                      </div>
+                    </div>
+
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <h3 className="font-bold text-lg">Weekly Trend</h3>
+                          <p className={`text-xs ${mutedText}`}>Last 5 days.</p>
+                        </div>
+                      </div>
+                      <div className={`relative h-56 w-full flex-1 flex flex-col items-center justify-center border border-dashed rounded-xl ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                        <LineChart className={`w-10 h-10 mb-3 opacity-50 ${mutedText}`} />
+                        <p className={`${mutedText} font-medium`}>Weekly Component</p>
+                      </div>
+                    </div>
+
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <h3 className="font-bold text-lg">Today's Ratio</h3>
+                          <p className={`text-xs ${mutedText}`}>Present vs. Absent</p>
+                        </div>
+                      </div>
+                      <div className={`relative h-56 w-full flex-1 flex flex-col items-center justify-center border border-dashed rounded-xl ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                        <PieChart className={`w-10 h-10 mb-3 opacity-50 ${mutedText}`} />
+                        <p className={`${mutedText} font-medium`}>Pie Chart Component</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --- 2. USER DATABASE VIEW (Shows Everyone) --- */}
+              {activeView === 'database' && (
+                <div className={`${cardStyle} !p-0 overflow-hidden`}>
+                  <div className={`p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
+                    <div>
+                      <h3 className="font-bold text-lg">User Management</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Manage roles, Edit, and reset passwords.</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                      <div className="relative flex-1 sm:flex-initial">
+                          <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                          <input type="text" placeholder="Search ID or Name..." className={`${inputStyle} pl-10 h-full w-full sm:w-60 bg-transparent`} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button className={`${subBg} ${textColor} text-xs px-4 py-2.5 rounded-lg font-semibold ${hoverBg} transition`}>Import</button>
+                        <button className={`${subBg} ${textColor} text-xs px-4 py-2.5 rounded-lg font-semibold ${hoverBg} transition`}>Export</button>
+                        <button className={`text-white text-xs px-5 py-2.5 rounded-lg shadow-sm font-semibold transition flex items-center gap-1.5 ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
+                          <Users size={14} /> Add User
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto p-6 pt-0 custom-scrollbar">
+                    <table className="w-full text-sm text-left mt-4 whitespace-nowrap">
+                      <thead className={`text-xs ${mutedText} uppercase tracking-wider ${subBg}`}>
+                        <tr>
+                          <th className="px-4 py-3 rounded-tl-lg font-semibold">User Details</th>
+                          <th className="px-4 py-3 font-semibold">Role</th>
+                          <th className="px-4 py-3 font-semibold">Email</th>
+                          <th className="px-4 py-3 font-semibold rounded-tr-lg text-right">Management Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${borderSubColor}`}>
+                        {isUsersLoading ? (
+                          <tr><td colSpan="4" className="text-center py-8 font-bold text-cyan-500">Loading Database...</td></tr>
+                        ) : users.length === 0 ? (
+                          <tr><td colSpan="4" className={`text-center py-8 font-bold ${mutedText}`}>No users found.</td></tr>
+                        ) : (
+                        users.map((user) => (
+                            <tr key={user.id} className={`${hoverBg} transition-colors group`}>
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-3">
+                                  <img src={`https://ui-avatars.com/api/?name=${user.name}&background=random`} alt={user.name} className="w-10 h-10 rounded-full" />
+                                  <div>
+                                    <span className="block font-bold">{user.name}</span>
+                                    <span className={`text-[11px] ${mutedText}`}>{user.student_id || `ID: ${user.id}`}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className={`px-2.5 py-1 rounded-md text-[12px] font-bold tracking-wide uppercase ${getRoleBadgeColor(user.role)}`}>
+                                  {user.role}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className="text-[13px] font-medium">
+                                  {user.email || '—'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-right space-x-2">
+                                <button title="Reset Password" className={`p-2 rounded-lg transition ${subBg} ${hoverBg} ${brandColor}`}><KeyRound size={16} /></button>
+                                <button onClick={() => handleEditUser(user.id, user.name, user.role)} title="Edit User" className={`p-2 rounded-lg transition shadow-sm font-bold ${isDark ? 'bg-cyan-500 text-slate-900 hover:bg-cyan-400' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}><Pencil size={16} /></button>
+                                <button onClick={() => handleDeleteUser(user.id, user.name)} title="Delete User" className={`p-2 rounded-lg transition ${subBg} hover:bg-red-500/10 text-red-500`}><Trash2 size={16} /></button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* --- 3. BIOMETRIC ENROLLMENT VIEW (Shows ONLY Students) --- */}
+              {activeView === 'biometric' && (
+                <div className={`${cardStyle} !p-0 overflow-hidden`}>
+                  <div className={`p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
+                    <div>
+                      <h3 className="font-bold text-lg">Biometric Enrollment</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Manage fingerprint data for registered students.</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                      <div className="relative flex-1 sm:flex-initial">
+                          <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                          <input type="text" placeholder="Search ID or Name..." className={`${inputStyle} pl-10 h-full w-full sm:w-60 bg-transparent`} />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto p-6 pt-0 custom-scrollbar">
+                    <table className="w-full text-sm text-left mt-4 whitespace-nowrap">
+                      <thead className={`text-xs ${mutedText} uppercase tracking-wider ${subBg}`}>
+                        <tr>
+                          <th className="px-4 py-3 rounded-tl-lg font-semibold">User Details</th>
+                          <th className="px-4 py-3 font-semibold">Sex</th>
+                          <th className="px-4 py-3 font-semibold">Email</th>
+                          <th className="px-4 py-3 font-semibold">Phone Number</th>
+                          <th className="px-4 py-3 font-semibold">Fingerprint Status</th>
+                          <th className="px-4 py-3 font-semibold rounded-tr-lg text-right">Management Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${borderSubColor}`}>
+                        {isUsersLoading ? (
+                          <tr><td colSpan="6" className="text-center py-8 font-bold text-cyan-500">Loading Database...</td></tr>
+                        ) : users.length === 0 ? (
+                          <tr><td colSpan="6" className={`text-center py-8 font-bold ${mutedText}`}>No students found.</td></tr>
+                        ) : (
+                        users.map((user) => {
+                          const isRegistered = user.fingerprint_id !== null && user.fingerprint_id !== undefined && user.fingerprint_id !== ''; 
+
+                          return (
+                            <tr key={user.id} className={`${hoverBg} transition-colors group`}>
+                              
+                              <td className="px-4 py-4">
+                                <div>
+                                  <span className="block font-bold text-[14px] mb-1">{user.name}</span>
+                                  <span className={`text-[11px] ${mutedText} block`}>ID: {user.id}</span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <span className="text-[13px] font-medium">
+                                  {user.sex === 'M' ? 'Male' : user.sex === 'F' ? 'Female' : '—'}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <span className="text-[13px] font-medium">{user.email || '—'}</span>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <span className="text-[13px] font-medium">{user.phone || '—'}</span>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <div>
+                                  <span className={`text-[12px] font-bold flex items-center gap-1.5 ${isRegistered ? 'text-green-500' : 'text-red-500'}`}>
+                                    {isRegistered ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                                    {isRegistered ? 'Registered' : 'Not Registered'}
+                                  </span>
+                                  <span className={`text-[11px] ${mutedText} block mt-1`}>
+                                    {isRegistered ? `FP-${user.fingerprint_id}` : '—'}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-4 text-right space-x-2">
+                                <button
+                                  title="Add Fingerprint"
+                                  className={`p-2 rounded-lg transition shadow-sm font-bold ${isDark ? 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-slate-900' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'}`}
+                                >
+                                  <Fingerprint size={16} />
+                                </button>
+                                <button
+                                  title="Delete Fingerprint"
+                                  disabled={!isRegistered}
+                                  className={`p-2 rounded-lg transition ${!isRegistered ? 'opacity-30 cursor-not-allowed' : `${subBg} hover:bg-red-500/10 text-red-500`}`}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+
+                            </tr>
+                          );
+                        })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'timetable' && (
+                <div className={`${cardStyle}`}>
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="font-bold text-lg">Schedule / Timetable Management</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Define active learning periods and subject schedules.</p>
+                    </div>
+                    <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
+                      <CalendarDays size={14} className="mr-1 inline" /> Add Schedule
+                    </button>
+                  </div>
+                  <div className={`h-80 w-full flex-1 flex flex-col items-center justify-center border border-dashed rounded-xl ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                    <CalendarDays className={`w-12 h-12 mb-3 opacity-30 ${mutedText}`} />
+                    <p className={`${mutedText} font-medium`}>Timetable Calendar/Grid Component</p>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'classes' && (
+                <div className={`${cardStyle}`}>
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="font-bold text-lg">Active Classes</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Manage rosters and assign teachers to specific subjects.</p>
+                    </div>
+                    <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><i className="fas fa-plus mr-1"></i> Create Class</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className={`border rounded-xl p-5 ${borderSubColor} ${subBg}`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-lg">MAT-101</p>
+                          <p className={`text-xs ${brandColor} font-semibold uppercase tracking-wider`}>Calculus</p>
+                        </div>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>45 Students</span>
+                      </div>
+                      <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
+                        <div className="flex items-center gap-2">
+                          <img src="https://ui-avatars.com/api/?name=Mr.+Smith&background=eef2ff&color=6366f1" className="w-6 h-6 rounded-full" />
+                          <p className={`text-xs font-medium ${mutedText}`}>Mr. Smith</p>
+                        </div>
+                        <button className={`text-xs font-bold hover:underline ${brandColor}`}>Manage Roster</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'hardware' && (
+                <div className={`${cardStyle}`}>
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="font-bold text-lg">Biometric Hardware Endpoints</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Monitor the connection status of physical fingerprint scanners.</p>
+                    </div>
+                    <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><i className="fas fa-plus mr-1"></i> Register Device</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className={`border rounded-xl p-5 flex flex-col justify-between ${borderSubColor} ${subBg}`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <p className="font-bold text-lg">BIO-01</p>
+                          <p className={`text-xs ${mutedText} mt-0.5`}><i className="fas fa-map-marker-alt mr-1"></i> Main Entrance</p>
+                        </div>
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded flex items-center gap-1.5 ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> ONLINE
+                        </span>
+                      </div>
+                      <div className={`pt-4 border-t ${borderSubColor} flex justify-between text-xs`}>
+                        <span className={mutedText}>Last Sync: Just now</span>
+                        <button className={`font-bold hover:underline ${brandColor}`}>Configure</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'reports' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className={`${cardStyle}`}>
+                    <div className="mb-6">
+                      <h3 className="font-bold text-lg">Report Generation</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Export system-wide attendance data for administration.</p>
+                    </div>
+                    <div className="space-y-4 mb-6">
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Time Range</label>
+                        <select className={inputStyle}>
+                          <option>Daily</option><option>Weekly</option><option>Monthly</option><option>Semester</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
+                        <select className={inputStyle}>
+                          <option>All Classes</option><option>Specific Class</option><option>Specific Student</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-auto">
+                      <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
+                      <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
+                      <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
+                    </div>
+                  </div>
+
+                  <div className={`${cardStyle}`}>
+                    <div className="mb-6">
+                      <h3 className="font-bold text-lg">Database Management</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Configure thresholds and secure your SQL data.</p>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late Threshold (Minutes)</label>
+                        <input type="number" defaultValue="15" className={inputStyle} />
+                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this grace period are marked 'Late'.</p>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>
+                        <select className={inputStyle}>
+                          <option>Daily (Midnight)</option>
+                          <option>Weekly (Sunday)</option>
+                          <option>Never</option>
+                        </select>
+                      </div>
+                      <div className={`pt-6 border-t ${borderSubColor}`}>
+                        <button className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
+                          <Database size={16} /> Force Manual Backup Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'logs' && (
+                <div className={`${cardStyle} !p-0 overflow-hidden`}>
+                  <div className={`p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
+                    <div>
+                      <h3 className="font-bold text-lg">System Event Logs</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Feeds of administrative changes and specific scanner check-ins.</p>
+                    </div>
+                    <button className={`text-xs px-4 py-2.5 rounded-lg font-semibold transition flex items-center gap-2 ${subBg} ${hoverBg}`}><i className="fas fa-filter"></i> Filter Logs</button>
+                  </div>
+                  <div className="overflow-x-auto p-6 pt-0 custom-scrollbar">
+                    <table className="w-full text-sm text-left mt-4 whitespace-nowrap">
+                      <thead className={`text-xs ${mutedText} uppercase tracking-wider ${subBg}`}>
+                        <tr>
+                          <th className="px-4 py-3 rounded-tl-lg font-semibold">Timestamp</th>
+                          <th className="px-4 py-3 font-semibold">User</th>
+                          <th className="px-4 py-3 font-semibold">Type</th>
+                          <th className="px-4 py-3 font-semibold rounded-tr-lg">Action Message / Changes</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y font-mono text-xs ${borderSubColor}`}>
+                        <tr className={`${hoverBg} transition-colors group`}>
+                          <td className={`px-4 py-3 ${mutedText}`}>11:15:30 AM</td>
+                          <td className="px-4 py-3 font-bold">Admin User</td>
+                          <td className="px-4 py-3"><span className="text-blue-500 font-bold">ADMIN_CHANGE</span></td>
+                          <td className="px-4 py-3">Edited User ID: <span className={brandColor}>ST-001 (Mike Ross)</span> details. Updated email.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'settings' && (
+                <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className={`${cardStyle} p-8`}>
+                    <h3 className={`font-bold mb-6 text-lg border-b ${borderColor} pb-4`}>System Preferences</h3>
+                    <div className="space-y-8 max-w-lg">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-semibold">Theme Preference</p>
+                          <p className={`text-xs ${mutedText} mt-1`}>Select your default dashboard theme.</p>
+                        </div>
+                        <div className={`flex rounded-lg p-1 border transition-colors ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-100 border-gray-200'}`}>
+                          <button 
+                            onClick={() => setIsDark(false)} 
+                            className={`px-4 py-1.5 text-sm rounded-md font-bold transition-all flex items-center gap-2 ${!isDark ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400 hover:text-white'}`}
+                          >
+                            <Sun size={14} /> Light
+                          </button>
+                          <button 
+                            onClick={() => setIsDark(true)} 
+                            className={`px-4 py-1.5 text-sm rounded-md font-bold transition-all flex items-center gap-2 ${isDark ? 'bg-black shadow-[0_0_10px_rgba(255,255,255,0.1)] text-cyan-400 border border-white/10' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                            <Moon size={14} /> Dark
+                          </button>
+                        </div>
+                      </div>
+                      <div className={`pt-8 border-t ${borderColor}`}>
+                        <p className="font-semibold text-red-500">Session Management</p>
+                        <p className={`text-xs ${mutedText} mt-1 mb-4`}>Securely end your current administrative session.</p>
+                        <button onClick={onLogout} className="px-6 py-2.5 rounded-lg font-bold text-sm transition-colors bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center gap-2">
+                          <LogOut size={16} /> Log Out
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  };
+
+  export default AdminDashboard;
