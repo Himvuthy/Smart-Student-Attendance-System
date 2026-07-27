@@ -66,9 +66,10 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/biometric/students', async (req, res) => {
   try {
     const query = `
-      SELECT e.eid, e.fullname, e.email, e.phonenumber, s.studentid, b.biometricid
+      SELECT e.eid, e.fullname, u.email, e.phonenumber, s.studentid, b.biometricid
       FROM entity e
       JOIN student s ON e.eid = s.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
       LEFT JOIN biometric b ON s.studentid = b.studentid
       ORDER BY s.studentid ASC
     `;
