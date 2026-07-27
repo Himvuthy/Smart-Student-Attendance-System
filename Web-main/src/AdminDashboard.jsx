@@ -48,6 +48,8 @@ const AdminDashboard = ({ onLogout }) => {
   };
   const isLoading = false;
   const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [biometricStudents, setBiometricStudents] = useState([]);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
 
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -104,10 +106,25 @@ const AdminDashboard = ({ onLogout }) => {
     setIsEntitiesLoading(false);
   };
 
+  const fetchBiometricStudents = async () => {
+    setIsBiometricLoading(true);
+    try {
+      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/biometric/students');
+      if (res.ok) {
+        const data = await res.json();
+        setBiometricStudents(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setIsBiometricLoading(false);
+  };
+
   useEffect(() => {
     if (activeView === 'database') fetchUsers();
     else if (activeView === 'attendance') fetchClasses();
     else if (activeView === 'entities') fetchEntities();
+    else if (activeView === 'biometric') fetchBiometricStudents();
   }, [activeView]);
 
   const handleAddUserSubmit = async (e) => {
@@ -1086,7 +1103,6 @@ const AdminDashboard = ({ onLogout }) => {
                     <thead className={`text-xs ${mutedText} uppercase tracking-wider ${subBg}`}>
                       <tr>
                         <th className="px-4 py-3 rounded-tl-lg font-semibold">User Details</th>
-                        <th className="px-4 py-3 font-semibold">Sex</th>
                         <th className="px-4 py-3 font-semibold">Email</th>
                         <th className="px-4 py-3 font-semibold">Phone Number</th>
                         <th className="px-4 py-3 font-semibold">Fingerprint Status</th>
@@ -1094,40 +1110,34 @@ const AdminDashboard = ({ onLogout }) => {
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${borderSubColor}`}>
-                      {isUsersLoading ? (
+                      {isBiometricLoading ? (
                         <>
                           <SkeletonRow cols={5} />
                           <SkeletonRow cols={5} />
                           <SkeletonRow cols={5} />
                         </>
-                      ) : users.length === 0 ? (
-                        <tr><td colSpan="6" className={`text-center py-8 font-bold ${mutedText}`}>No students found.</td></tr>
+                      ) : biometricStudents.length === 0 ? (
+                        <tr><td colSpan="5" className={`text-center py-8 font-bold ${mutedText}`}>No students found.</td></tr>
                       ) : (
-                      users.map((user) => {
-                        const isRegistered = user.fingerprint_id !== null && user.fingerprint_id !== undefined && user.fingerprint_id !== ''; 
+                      biometricStudents.map((student) => {
+                        const isRegistered = student.biometricid !== null && student.biometricid !== undefined && student.biometricid !== ''; 
 
                         return (
-                          <tr key={user.id} className={`${hoverBg} transition-colors group`}>
+                          <tr key={student.studentid} className={`${hoverBg} transition-colors group`}>
                             
                             <td className="px-4 py-4">
                               <div>
-                                <span className="block font-bold text-[14px] mb-1">{user.name}</span>
-                                <span className={`text-[11px] ${mutedText} block`}>ID: {user.id}</span>
+                                <span className="block font-bold text-[14px] mb-1">{student.fullname}</span>
+                                <span className={`text-[11px] ${mutedText} block`}>ID: {String(student.studentid).padStart(4, '0')}</span>
                               </div>
                             </td>
 
                             <td className="px-4 py-4">
-                              <span className="text-[13px] font-medium">
-                                {user.sex === 'M' ? 'Male' : user.sex === 'F' ? 'Female' : '—'}
-                              </span>
+                              <span className="text-[13px] font-medium">{student.email || '—'}</span>
                             </td>
 
                             <td className="px-4 py-4">
-                              <span className="text-[13px] font-medium">{user.email || '—'}</span>
-                            </td>
-
-                            <td className="px-4 py-4">
-                              <span className="text-[13px] font-medium">{user.phone || '—'}</span>
+                              <span className="text-[13px] font-medium">{student.phonenumber || '—'}</span>
                             </td>
 
                             <td className="px-4 py-4">
@@ -1137,7 +1147,7 @@ const AdminDashboard = ({ onLogout }) => {
                                   {isRegistered ? 'Registered' : 'Not Registered'}
                                 </span>
                                 <span className={`text-[11px] ${mutedText} block mt-1`}>
-                                  {isRegistered ? `FP-${user.fingerprint_id}` : '—'}
+                                  {isRegistered ? `FP-${student.biometricid}` : '—'}
                                 </span>
                               </div>
                             </td>
