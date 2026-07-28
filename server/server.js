@@ -417,6 +417,7 @@ app.get('/api/attendance-tracking/classes', async (req, res) => {
     const enhancedClasses = await Promise.all(classResult.rows.map(async (cls) => {
       let todaySubject = null;
       let presentCount = 0;
+      let lateCount = 0;
       
       const scheduleRes = await pool.query('SELECT scheduleid, subject FROM schedule WHERE classid = $1 AND dayofweek = $2', [cls.classid, todayStr]);
       if (scheduleRes.rows.length > 0) {
@@ -425,13 +426,17 @@ app.get('/api/attendance-tracking/classes', async (req, res) => {
         if (sessionRes.rows.length > 0) {
           const attRes = await pool.query("SELECT COUNT(*) FROM attendance WHERE sessionid = $1 AND status != '-' AND status != 'Absent'", [sessionRes.rows[0].sessionid]);
           presentCount = parseInt(attRes.rows[0].count);
+          
+          const lateRes = await pool.query("SELECT COUNT(*) FROM attendance WHERE sessionid = $1 AND status = 'Late'", [sessionRes.rows[0].sessionid]);
+          lateCount = parseInt(lateRes.rows[0].count);
         }
       }
       
       return {
         ...cls,
         todaySubject,
-        presentCount
+        presentCount,
+        lateCount
       };
     }));
     
@@ -448,6 +453,7 @@ app.get('/api/attendance-tracking/classes/:classid/sessions', async (req, res) =
     const sessionRes = await pool.query(`
       SELECT s.sessionid, s.sessiondate, sch.subject, sch.starttime, sch.endtime,
         (SELECT COUNT(*) FROM attendance a WHERE a.sessionid = s.sessionid AND a.status != '-' AND a.status != 'Absent') AS present_count,
+        (SELECT COUNT(*) FROM attendance a WHERE a.sessionid = s.sessionid AND a.status = 'Late') AS late_count,
         (SELECT COUNT(*) FROM enrollment e WHERE e.classid = sch.classid) AS total_enrolled
       FROM session s
       JOIN schedule sch ON s.scheduleid = sch.scheduleid
