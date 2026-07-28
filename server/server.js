@@ -188,6 +188,13 @@ app.post('/api/entities', async (req, res) => {
         [newEid, username, email, hashedPassword]
       );
     }
+    
+    if (parseInt(roleid) === 3) {
+      await pool.query('INSERT INTO student (eid) VALUES ($1)', [newEid]);
+    } else if (parseInt(roleid) === 2) {
+      await pool.query('INSERT INTO lecturer (eid) VALUES ($1)', [newEid]);
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error creating entity:', error);
