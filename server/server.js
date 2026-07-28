@@ -446,7 +446,9 @@ app.get('/api/attendance-tracking/classes/:classid/sessions', async (req, res) =
   try {
     const { classid } = req.params;
     const sessionRes = await pool.query(`
-      SELECT s.sessionid, s.sessiondate, sch.subject, sch.starttime, sch.endtime
+      SELECT s.sessionid, s.sessiondate, sch.subject, sch.starttime, sch.endtime,
+        (SELECT COUNT(*) FROM attendance a WHERE a.sessionid = s.sessionid AND a.status != '-' AND a.status != 'Absent') AS present_count,
+        (SELECT COUNT(*) FROM enrollment e WHERE e.classid = sch.classid) AS total_enrolled
       FROM session s
       JOIN schedule sch ON s.scheduleid = sch.scheduleid
       WHERE sch.classid = $1
