@@ -401,6 +401,82 @@ app.put('/api/attendance/bulk', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+// --- NEW APIS for Attendance Tracking Dashboard ---
+
+app.get('/api/attendance-tracking/classes', async (req, res) => {
+  try {
+    const classResult = await pool.query(`
+      SELECT c.classid, c.classname, c.classcode, 
+        (SELECT COUNT(*) FROM enrollment e WHERE e.classid = c.classid) AS total_enrolled
+      FROM class c
+    `);
+    
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayStr = days[new Date().getDay()];
+    
+    const enhancedClasses = await Promise.all(classResult.rows.map(async (cls) => {
+      let todaySubject = null;
+      let presentCount = 0;
+      
+      const scheduleRes = await pool.query('SELECT scheduleid, subject FROM schedule WHERE classid = $1 AND dayofweek = $2', [cls.classid, todayStr]);
+      if (scheduleRes.rows.length > 0) {
+        todaySubject = scheduleRes.rows[0].subject;
+        const sessionRes = await pool.query('SELECT sessionid FROM session WHERE scheduleid = $1 AND sessiondate = CURRENT_DATE', [scheduleRes.rows[0].scheduleid]);
+        if (sessionRes.rows.length > 0) {
+          const attRes = await pool.query("SELECT COUNT(*) FROM attendance WHERE sessionid = $1 AND status != '-' AND status != 'Absent'", [sessionRes.rows[0].sessionid]);
+          presentCount = parseInt(attRes.rows[0].count);
+        }
+      }
+      
+      return {
+        ...cls,
+        todaySubject,
+        presentCount
+      };
+    }));
+    
+    res.json(enhancedClasses);
+  } catch (error) {
+    console.error('Error fetching classes for tracking:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/attendance-tracking/classes/:classid/sessions', async (req, res) => {
+  try {
+    const { classid } = req.params;
+    const sessionRes = await pool.query(`
+      SELECT s.sessionid, s.sessiondate, sch.subject, sch.starttime, sch.endtime
+      FROM session s
+      JOIN schedule sch ON s.scheduleid = sch.scheduleid
+      WHERE sch.classid = $1
+      ORDER BY s.sessiondate DESC
+      LIMIT 10
+    `, [classid]);
+    res.json(sessionRes.rows);
+  } catch (error) {
+    console.error('Error fetching recent sessions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/attendance-tracking/sessions/:sessionid/log', async (req, res) => {
+  try {
+    const { sessionid } = req.params;
+    const logRes = await pool.query(`
+      SELECT a.attendedat, a.status, a.minutelate, ent.fullname, ent.eid, st.studentid
+      FROM attendance a
+      JOIN student st ON a.studentid = st.studentid
+      JOIN entity ent ON st.eid = ent.eid
+      WHERE a.sessionid = $1
+      ORDER BY a.attendedat ASC
+    `, [sessionid]);
+    res.json(logRes.rows);
+  } catch (error) {
+    console.error('Error fetching session log:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
