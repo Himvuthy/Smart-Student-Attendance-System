@@ -2436,57 +2436,100 @@ const AdminDashboard = ({ onLogout }) => {
             )}
 
             {activeView === 'reports' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className={`${cardStyle}`}>
-                  <div className="mb-6">
-                    <h3 className="font-bold text-lg">Report Generation</h3>
-                    <p className={`text-xs ${mutedText} mt-1`}>Export system-wide attendance data for administration.</p>
-                  </div>
-                  <div className="space-y-4 mb-6">
-                    <div>
-                      <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Time Range</label>
-                      <select className={inputStyle}>
-                        <option>Daily</option><option>Weekly</option><option>Monthly</option><option>Semester</option>
-                      </select>
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className={`${cardStyle}`}>
+                    <div className="mb-6">
+                      <h3 className="font-bold text-lg">Report Generation</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Export system-wide attendance data for administration.</p>
                     </div>
-                    <div>
-                      <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
-                      <select className={inputStyle}>
-                        <option>All Classes</option><option>Specific Class</option><option>Specific Student</option>
-                      </select>
+                    <div className="space-y-4 mb-6">
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Time Range</label>
+                        <select className={inputStyle}>
+                          <option>Daily</option><option>Weekly</option><option>Monthly</option><option>Semester</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
+                        <select className={inputStyle}>
+                          <option>All Classes</option><option>Specific Class</option><option>Specific Student</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-auto">
+                      <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
+                      <button onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
+                      <button onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 mt-auto">
-                    <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
-                    <button onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
-                    <button onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
+
+                  <div className={`${cardStyle}`}>
+                    <div className="mb-6">
+                      <h3 className="font-bold text-lg">Database Management</h3>
+                      <p className={`text-xs ${mutedText} mt-1`}>Configure thresholds and secure your SQL data.</p>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late Threshold (Minutes)</label>
+                        <input type="number" defaultValue="15" className={inputStyle} />
+                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this grace period are marked 'Late'.</p>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>
+                        <select className={inputStyle}>
+                          <option>Daily (Midnight)</option>
+                          <option>Weekly (Sunday)</option>
+                          <option>Never</option>
+                        </select>
+                      </div>
+                      <div className={`pt-6 border-t ${borderSubColor}`}>
+                        <button className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
+                          <Database size={16} /> Force Manual Backup Now
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className={`${cardStyle}`}>
-                  <div className="mb-6">
-                    <h3 className="font-bold text-lg">Database Management</h3>
-                    <p className={`text-xs ${mutedText} mt-1`}>Configure thresholds and secure your SQL data.</p>
+                {/* Recent Backups */}
+                <div className={`${cardStyle} !p-0 overflow-hidden`}>
+                  <div className={`p-6 pb-4 border-b flex justify-between items-center ${borderSubColor}`}>
+                    <h3 className="font-bold text-lg">Recent Backups</h3>
+                    <button className={`px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition`}>Select All</button>
                   </div>
-                  <div className="space-y-6">
-                    <div>
-                      <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late Threshold (Minutes)</label>
-                      <input type="number" defaultValue="15" className={inputStyle} />
-                      <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this grace period are marked 'Late'.</p>
-                    </div>
-                    <div>
-                      <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>
-                      <select className={inputStyle}>
-                        <option>Daily (Midnight)</option>
-                        <option>Weekly (Sunday)</option>
-                        <option>Never</option>
-                      </select>
-                    </div>
-                    <div className={`pt-6 border-t ${borderSubColor}`}>
-                      <button className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
-                        <Database size={16} /> Force Manual Backup Now
-                      </button>
-                    </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                      <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
+                        <tr>
+                          <th className="px-6 py-4">Backup ID</th>
+                          <th className="px-6 py-4">File Name</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4">Size</th>
+                          <th className="px-6 py-4"></th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${borderSubColor}`}>
+                        {[
+                          { id: 1, name: 'backup_2026-07-15_1200.sql', date: '7/15/2026, 12:00 PM', size: '15.4 MB' },
+                          { id: 2, name: 'backup_2026-07-14_1200.sql', date: '7/14/2026, 12:00 PM', size: '15.2 MB' },
+                          { id: 3, name: 'backup_2026-07-13_1200.sql', date: '7/13/2026, 12:00 PM', size: '14.9 MB' },
+                        ].map(backup => (
+                          <tr key={backup.id} className={`${hoverBg} transition-colors`}>
+                            <td className="px-6 py-4 font-bold">{backup.id}</td>
+                            <td className="px-6 py-4 font-bold">{backup.name}</td>
+                            <td className="px-6 py-4 text-xs font-semibold">{backup.date}</td>
+                            <td className="px-6 py-4 text-xs font-semibold">{backup.size}</td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <div className={`w-4 h-4 rounded bg-gray-600 dark:bg-gray-400 cursor-pointer transition hover:opacity-80`}></div>
+                                <button className={`p-1 rounded-lg ${mutedText} hover:bg-gray-100 dark:hover:bg-white/5`}><MoreVertical size={16} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
