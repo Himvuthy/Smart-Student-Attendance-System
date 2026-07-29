@@ -6,6 +6,9 @@ import {
   CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart as PieChartIcon, MoreHorizontal,
   Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const AdminDashboard = ({ onLogout }) => {
@@ -578,6 +581,67 @@ const AdminDashboard = ({ onLogout }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const handleGenerateReport = async (format) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/reports/attendance');
+      if (!res.ok) throw new Error('Failed to fetch report data');
+      const data = await res.json();
+      
+      if (!data || data.length === 0) {
+        alert('No attendance data available to generate report.');
+        return;
+      }
+
+      const formattedData = data.map(row => ({
+        'Student ID': String(row.studentid).padStart(4, '0'),
+        'Student Name': row.studentname,
+        'Class Code': row.classcode,
+        'Class Name': row.classname,
+        'Session Date': new Date(row.sessiondate).toLocaleDateString(),
+        'Status': row.status,
+        'Time Attended': row.attendedat ? new Date(row.attendedat).toLocaleTimeString() : 'N/A',
+        'Minutes Late': row.minutelate || 0
+      }));
+
+      const filename = `Attendance_Report_${new Date().toISOString().split('T')[0]}`;
+
+      if (format === 'CSV') {
+        const header = Object.keys(formattedData[0]).join(',');
+        const rows = formattedData.map(row => Object.values(row).map(val => `"${val}"`).join(',')).join('\n');
+        const csvContent = `${header}\n${rows}`;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${filename}.csv`;
+        link.click();
+      } else if (format === 'Excel') {
+        const worksheet = XLSX.utils.json_to_sheet(formattedData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+        XLSX.writeFile(workbook, `${filename}.xlsx`);
+      } else if (format === 'PDF') {
+        const doc = new jsPDF();
+        doc.text('System-Wide Attendance Report', 14, 15);
+        
+        const tableColumn = Object.keys(formattedData[0]);
+        const tableRows = formattedData.map(row => Object.values(row));
+        
+        doc.autoTable({
+          head: [tableColumn],
+          body: tableRows,
+          startY: 20,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [79, 70, 229] }
+        });
+        
+        doc.save(`${filename}.pdf`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error generating report: ' + e.message);
     }
   };
 
@@ -2393,9 +2457,9 @@ const AdminDashboard = ({ onLogout }) => {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3 mt-auto">
-                    <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
-                    <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
-                    <button className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
+                    <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
+                    <button onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
+                    <button onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
                   </div>
                 </div>
 
