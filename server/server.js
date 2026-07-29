@@ -551,6 +551,35 @@ app.put('/api/attendance/bulk', async (req, res) => {
 });
 // --- NEW APIS for Attendance Tracking Dashboard ---
 
+// GET system-wide attendance for reports
+app.get('/api/reports/attendance', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        a.attendanceid,
+        a.status,
+        a.attendedat,
+        a.minutelate,
+        s.studentid,
+        e.fullname AS studentname,
+        c.classcode,
+        c.classname,
+        sess.sessiondate
+      FROM attendance a
+      JOIN student s ON a.studentid = s.studentid
+      JOIN entity e ON s.eid = e.eid
+      JOIN session sess ON a.sessionid = sess.sessionid
+      JOIN class c ON sess.classid = c.classid
+      ORDER BY a.attendedat DESC
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching report data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/attendance-tracking/classes', async (req, res) => {
   try {
     const classResult = await pool.query(`
