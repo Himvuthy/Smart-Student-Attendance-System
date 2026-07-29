@@ -38,6 +38,9 @@ const App = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
     localStorage.removeItem('adminActiveView');
+    localStorage.removeItem('loggedInUser');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('adminTheme');
   };
 
   // --- THE TRAFFIC COP ---

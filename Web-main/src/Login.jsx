@@ -40,6 +40,9 @@ const Login = ({ onLoginSuccess }) => {
       }
 
       setIsLoading(false);
+      // Save under both keys — admin uses 'loggedInUser', student/teacher dashboards use 'currentUser'
+      localStorage.setItem('loggedInUser', JSON.stringify(data.user));
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
       setIsExiting(true); 
       setTimeout(() => {
         onLoginSuccess(String(data.user.roleid)); 

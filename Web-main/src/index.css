@@ -1,1 +1,135 @@
 @import "tailwindcss";
+
+/* Use the dashboard's .dark class instead of the operating-system theme.
+   This keeps the light/dark toggle authoritative on every device. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  color-scheme: light;
+}
+
+/* Teacher pages carry their own content heading, so the utility bar stays title-free. */
+.teacher-dashboard main > div > header > div:first-child > p {
+  display: none;
+}
+
+/* Bright campus design system shared by the student and teacher portals. */
+.campus-dashboard {
+  --campus-sky: #d8eaf6;
+  --campus-azure: #a9d2eb;
+  --campus-cyan: #e8f2f8;
+  --campus-cream: #faf5ed;
+  --campus-ink: #172f43;
+  --campus-muted: #4d667a;
+  --campus-line: #c9dae6;
+  color-scheme: light;
+  color: var(--campus-ink);
+}
+
+.campus-shell {
+  background:
+    linear-gradient(135deg, #e4f0f7 0%, #edf5f9 48%, #f7f8f7 100%);
+  background-attachment: fixed;
+}
+
+.campus-dashboard.soft-sky .campus-shell {
+  background: linear-gradient(135deg, #d8eaf6 0%, #e6f1f7 52%, #f5f7f6 100%);
+}
+
+.campus-sidebar {
+  background: linear-gradient(180deg, #f9fbfc 0%, #edf4f8 100%);
+  border-color: #c9dae6 !important;
+  box-shadow: 8px 0 24px rgba(50, 82, 105, 0.07);
+  backdrop-filter: blur(10px);
+}
+
+.campus-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f9fcfd 100%) !important;
+  border-color: #cbdce7 !important;
+  box-shadow:
+    0 7px 18px rgba(54, 85, 107, 0.09),
+    0 1px 3px rgba(54, 85, 107, 0.07) !important;
+}
+
+.campus-card:hover {
+  box-shadow:
+    0 10px 24px rgba(54, 85, 107, 0.12),
+    0 2px 5px rgba(54, 85, 107, 0.08) !important;
+}
+
+.campus-dashboard [class~="bg-sky-400"],
+.campus-dashboard [class~="bg-sky-500"],
+.campus-dashboard [class~="bg-sky-300"],
+.campus-dashboard [class~="bg-[#60a5fa]"] {
+  background-color: #9bcbe7 !important;
+  background-image: linear-gradient(135deg, #8fc3e2 0%, #b7dbee 100%) !important;
+  color: #173a52 !important;
+}
+
+.campus-dashboard [class~="hover:bg-sky-500"]:hover,
+.campus-dashboard [class~="hover:bg-sky-600"]:hover,
+.campus-dashboard [class~="hover:bg-[#3b82f6]"]:hover {
+  background-color: #82badb !important;
+  background-image: linear-gradient(135deg, #79b3d6 0%, #a9d2e8 100%) !important;
+  color: #102f45 !important;
+}
+
+.campus-dashboard .group:hover [class~="group-hover:bg-[#60a5fa]"],
+.campus-dashboard .group:hover [class~="group-hover:bg-sky-400"],
+.campus-dashboard .group:hover [class~="group-hover:bg-[#3b82f6]"] {
+  background-color: #9bcbe7 !important;
+  background-image: linear-gradient(135deg, #8fc3e2, #b7dbee) !important;
+  color: #173a52 !important;
+}
+
+.campus-dashboard [class~="bg-sky-200"] {
+  background-color: #acd3e9 !important;
+  background-image: linear-gradient(180deg, #b7dbee, #83bada) !important;
+}
+
+.campus-dashboard [class~="bg-sky-50"],
+.campus-dashboard [class~="bg-sky-50/50"],
+.campus-dashboard [class~="bg-sky-50/70"],
+.campus-dashboard [class~="bg-sky-50/80"],
+.campus-dashboard [class~="bg-[#eaf4ff]"] {
+  background-color: #e7f1f7 !important;
+  background-image: none !important;
+}
+
+.campus-dashboard [class~="text-sky-500"],
+.campus-dashboard [class~="text-sky-600"],
+.campus-dashboard [class~="text-sky-700"],
+.campus-dashboard [class~="text-sky-800"],
+.campus-dashboard [class~="text-[#3b82f6]"],
+.campus-dashboard [class~="text-[#2563eb]"],
+.campus-dashboard [class~="text-[#60a5fa]"] {
+  color: #2d6488 !important;
+}
+
+.campus-dashboard [class~="text-slate-500"],
+.campus-dashboard [class~="text-slate-600"] {
+  color: var(--campus-muted) !important;
+}
+
+.campus-dashboard [class~="border-sky-300"],
+.campus-dashboard [class~="border-sky-400"],
+.campus-dashboard [class~="border-[#60a5fa]"] {
+  border-color: #75afd2 !important;
+}
+
+.campus-dashboard [class~="ring-sky-100"],
+.campus-dashboard [class~="focus:ring-sky-100"]:focus,
+.campus-dashboard [class~="focus:ring-sky-200/60"]:focus {
+  --tw-ring-color: rgba(67, 137, 181, 0.24) !important;
+}
+
+.campus-dashboard input,
+.campus-dashboard select,
+.campus-dashboard textarea {
+  border-color: var(--campus-line);
+  background-color: #ffffff;
+}
+
+.campus-dashboard table thead {
+  background: #eaf2f7;
+}

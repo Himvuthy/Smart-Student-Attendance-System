@@ -4,7 +4,7 @@ import {
   Cpu, FileText, Terminal, Settings, LogOut, 
   Users, CheckCircle, XCircle, BarChart3, Sun, Moon,
   CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart as PieChartIcon, MoreHorizontal,
-  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X
+  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -17,6 +17,15 @@ const AdminDashboard = ({ onLogout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
 
+  // --- Attendance Tracking State ---
+  const [trackingLevel, setTrackingLevel] = useState('classes'); // 'classes', 'sessions', 'log'
+  const [trackingClasses, setTrackingClasses] = useState([]);
+  const [trackingSessions, setTrackingSessions] = useState([]);
+  const [trackingLogs, setTrackingLogs] = useState([]);
+  const [selectedTrackingClass, setSelectedTrackingClass] = useState(null);
+  const [selectedTrackingSession, setSelectedTrackingSession] = useState(null);
+  const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+
   useEffect(() => {
     if (activeView) {
       localStorage.setItem('adminActiveView', activeView);
@@ -24,19 +33,24 @@ const AdminDashboard = ({ onLogout }) => {
   }, [activeView]);
   
   const [isDark, setIsDark] = useState(() => {
-    return localStorage.getItem('appTheme') === 'dark';
+    return localStorage.getItem('adminTheme') === 'dark';
   });
 
   useEffect(() => {
-    localStorage.setItem('appTheme', isDark ? 'dark' : 'light');
+    localStorage.setItem('adminTheme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
   // --- CACHE & OPTIMISTIC RENDERING ---
   const dataCache = React.useRef({
     users: null,
+    entities: null,
+    biometric: null,
     classes: null,
     schedules: {},
-    attendance: {}
+    attendance: {},
+    trackingClasses: null,
+    trackingSessions: {},
+    trackingLogs: {}
   });
 
   // --- MOCK DATA (no database) ---
@@ -87,18 +101,25 @@ const AdminDashboard = ({ onLogout }) => {
   const [isEntitiesLoading, setIsEntitiesLoading] = useState(false);
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [entitySearchQuery, setEntitySearchQuery] = useState('');
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [sessionSearchQuery, setSessionSearchQuery] = useState('');
   const [editingEntity, setEditingEntity] = useState(null);
   const [newEntity, setNewEntity] = useState({
     fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: ''
   });
 
   const fetchEntities = async () => {
-    setIsEntitiesLoading(true);
+    if (dataCache.current.entities) {
+      setEntities(dataCache.current.entities);
+    } else {
+      setIsEntitiesLoading(true);
+    }
     try {
       const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/entities');
       if (res.ok) {
         const data = await res.json();
         setEntities(data);
+        dataCache.current.entities = data;
       }
     } catch (e) {
       console.error(e);
@@ -107,12 +128,17 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const fetchBiometricStudents = async () => {
-    setIsBiometricLoading(true);
+    if (dataCache.current.biometric) {
+      setBiometricStudents(dataCache.current.biometric);
+    } else {
+      setIsBiometricLoading(true);
+    }
     try {
       const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/biometric/students');
       if (res.ok) {
         const data = await res.json();
         setBiometricStudents(data);
+        dataCache.current.biometric = data;
       }
     } catch (e) {
       console.error(e);
@@ -122,7 +148,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   useEffect(() => {
     if (activeView === 'database') fetchUsers();
-    else if (activeView === 'attendance') fetchClasses();
+    else if (activeView === 'attendance') { fetchTrackingClasses(); setTrackingLevel('classes'); }
     else if (activeView === 'entities') fetchEntities();
     else if (activeView === 'biometric') fetchBiometricStudents();
   }, [activeView]);
@@ -142,87 +168,93 @@ const AdminDashboard = ({ onLogout }) => {
       lastlogin: '-'
     };
     
+    const previousUsers = [...users];
     setUsers(prev => [optimisticUser, ...prev]);
-    // Mock implementation for demo...
-    setUsers([optimisticUser, ...users]);
     setShowAddUser(false);
     setNewUser({ fullname: '', username: '', email: '', password: '', roleid: 3 });
+
+    try {
+      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(optimisticUser)
+      });
+      if (!res.ok) {
+        throw new Error('Failed to create user');
+      }
+      fetchUsers(); // Refresh cache with real data
+    } catch (error) {
+      console.error(error);
+      alert('Error creating user, changes reverted.');
+      setUsers(previousUsers); // Rollback
+    }
   };
 
   const handleSaveEntity = async (e) => {
     e.preventDefault();
+    const isEdit = !!editingEntity;
+    const tempEid = isEdit ? editingEntity.eid : Date.now();
+    
+    // OPTIMISTIC RENDER
+    const optimisticEntity = {
+      ...newEntity,
+      eid: tempEid,
+      roleid: newEntity.roleid,
+      rolename: newEntity.roleid === 1 ? 'Admin' : newEntity.roleid === 2 ? 'Teacher' : 'Student',
+      createdat: isEdit ? editingEntity.createdat : new Date().toISOString(),
+      lastedit: new Date().toISOString()
+    };
+    
+    // Save original state for rollback
+    const previousEntities = [...entities];
+    
+    if (isEdit) {
+      setEntities(prev => prev.map(en => en.eid === tempEid ? { ...en, ...optimisticEntity } : en));
+    } else {
+      setEntities(prev => [optimisticEntity, ...prev]);
+    }
+    
+    setShowEntityModal(false);
+    setEditingEntity(null);
+    setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' });
+
     try {
-      const url = editingEntity ? `https://smart-student-attendance-system-nkka.onrender.com/api/entities/${editingEntity.eid}` : 'https://smart-student-attendance-system-nkka.onrender.com/api/entities';
-      const method = editingEntity ? 'PUT' : 'POST';
+      const url = isEdit ? `https://smart-student-attendance-system-nkka.onrender.com/api/entities/${tempEid}` : 'https://smart-student-attendance-system-nkka.onrender.com/api/entities';
+      const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEntity)
       });
       if (res.ok) {
-        await fetchEntities();
-        setShowEntityModal(false);
-        setEditingEntity(null);
-        setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' });
+        fetchEntities(); // Sync with real IDs
       } else {
-        const err = await res.json();
-        alert('Failed: ' + err.error);
+        throw new Error('Failed to save');
       }
     } catch (err) {
       console.error(err);
-      alert('Error saving entity');
+      alert('Error saving entity, changes reverted.');
+      setEntities(previousEntities); // Rollback
     }
   };
 
   const handleDeleteEntity = async (eid) => {
     if (!confirm('Are you sure you want to delete this entity?')) return;
+    
+    const previousEntities = [...entities];
+    setEntities(prev => prev.filter(e => e.eid !== eid)); // OPTIMISTIC
+    
     try {
       const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/entities/${eid}`, { method: 'DELETE' });
       if (res.ok) {
-        await fetchEntities();
+        fetchEntities();
       } else {
-        alert('Failed to delete entity');
+        throw new Error('Failed to delete entity');
       }
     } catch (err) {
       console.error(err);
-      alert('Error deleting entity');
-    }
-  };
-
-  const handleUserSubmission = async (userToSubmit) => {
-    try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userToSubmit)
-      });
-      if (!res.ok) {
-        // Rollback on failure
-        setUsers(prev => prev.filter(u => u.id !== tempId));
-        const errorData = await res.json();
-        alert(errorData.error || 'Failed to create user');
-        return;
-      }
-      
-      // Revalidate cache in background
-      const res2 = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/users');
-      const data = await res2.json();
-      const formatted = data.map(u => ({
-        id: u.userid,
-        username: u.username,
-        name: u.fullname,
-        role: u.roleid === 1 ? 'Admin' : u.roleid === 2 ? 'Teacher' : 'Student',
-        email: u.email,
-        createdat: u.createdat ? new Date(u.createdat).toLocaleDateString() : '-',
-        lastlogin: u.lastlogin ? new Date(u.lastlogin).toLocaleString() : '-'
-      }));
-      setUsers(formatted);
-      dataCache.current.users = formatted;
-    } catch (error) {
-      // Rollback on failure
-      setUsers(prev => prev.filter(u => u.id !== tempId));
-      console.error('Add user error', error);
-      alert('Error creating user');
+      alert('Error deleting entity, changes reverted.');
+      setEntities(previousEntities); // Rollback
     }
   };
 
@@ -234,15 +266,43 @@ const AdminDashboard = ({ onLogout }) => {
     return matchesSearch && matchesRole;
   });
 
-  const handleDeleteUser = (userId, userName) => {
+  const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`Are you sure you want to permanently delete ${userName}?`)) return;
-    setUsers(users.filter(user => user.id !== userId));
+    
+    const previousUsers = [...users];
+    setUsers(users.filter(user => user.id !== userId)); // Optimistic UI
+    
+    try {
+      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete user');
+      fetchUsers();
+    } catch (error) {
+      console.error(error);
+      alert('Error deleting user, changes reverted.');
+      setUsers(previousUsers); // Rollback
+    }
   };
 
-  const handleEditUser = (userId, currentName, currentRole) => {
+  const handleEditUser = async (userId, currentName, currentRole) => {
     const newName = window.prompt("Enter new name for this user:", currentName);
     if (!newName || newName === currentName) return;
-    setUsers(users.map(user => user.id === userId ? { ...user, name: newName } : user));
+    
+    const previousUsers = [...users];
+    setUsers(users.map(user => user.id === userId ? { ...user, name: newName } : user)); // Optimistic UI
+    
+    try {
+      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName })
+      });
+      if (!res.ok) throw new Error('Failed to update user');
+      fetchUsers();
+    } catch (error) {
+      console.error(error);
+      alert('Error editing user, changes reverted.');
+      setUsers(previousUsers); // Rollback
+    }
   };
 
   // --- CLASS & ATTENDANCE DATA ---
@@ -265,6 +325,15 @@ const AdminDashboard = ({ onLogout }) => {
   const [enrollSearchQuery, setEnrollSearchQuery] = useState('');
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
 
+  // --- TIMETABLE CRUD STATE ---
+  const [selectedTimetableClass, setSelectedTimetableClass] = useState(null);
+  const [timetableSchedules, setTimetableSchedules] = useState([]);
+  const [isTimetableLoading, setIsTimetableLoading] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(null);
+  const [scheduleFormData, setScheduleFormData] = useState({ subject: '', starttime: '', endtime: '', dayofweek: 'Monday', teacherid: '' });
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
   const fetchClasses = async () => {
     if (dataCache.current.classes) {
       setClasses(dataCache.current.classes);
@@ -283,10 +352,150 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    if (activeView === 'classes') {
+    if (activeView === 'classes' || activeView === 'timetable') {
       fetchClasses();
     }
   }, [activeView]);
+
+  // --- TIMETABLE FUNCTIONS ---
+  const handleTimetableClassClick = async (cls) => {
+    setSelectedTimetableClass(cls);
+    setIsTimetableLoading(true);
+    try {
+      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/classes/${cls.classid}/schedules`);
+      const data = await res.json();
+      setTimetableSchedules(data);
+    } catch (error) {
+      console.error('Failed to fetch schedules', error);
+    }
+    setIsTimetableLoading(false);
+  };
+
+  const openAddScheduleModal = () => {
+    setEditingSchedule(null);
+    setScheduleFormData({ subject: '', starttime: '', endtime: '', dayofweek: 'Monday', teacherid: '' });
+    setShowScheduleModal(true);
+  };
+
+  const openEditScheduleModal = (sched) => {
+    setEditingSchedule(sched);
+    setScheduleFormData({
+      subject: sched.subject,
+      starttime: sched.starttime,
+      endtime: sched.endtime,
+      dayofweek: sched.dayofweek,
+      teacherid: sched.teacherid || ''
+    });
+    setShowScheduleModal(true);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!scheduleFormData.subject || !scheduleFormData.starttime || !scheduleFormData.endtime || !scheduleFormData.dayofweek) return;
+    setIsSavingSchedule(true);
+    try {
+      if (editingSchedule) {
+        // Edit
+        const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/schedules/${editingSchedule.scheduleid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(scheduleFormData)
+        });
+        const updatedSched = await res.json();
+        setTimetableSchedules(prev => prev.map(s => s.scheduleid === updatedSched.scheduleid ? updatedSched : s));
+      } else {
+        // Add
+        const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/classes/${selectedTimetableClass.classid}/schedules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(scheduleFormData)
+        });
+        const newSched = await res.json();
+        setTimetableSchedules(prev => [...prev, newSched]);
+      }
+      setShowScheduleModal(false);
+    } catch (error) {
+      console.error('Failed to save schedule', error);
+    }
+    setIsSavingSchedule(false);
+  };
+
+  const handleDeleteSchedule = async (scheduleid) => {
+    if (!window.confirm("Are you sure you want to delete this schedule?")) return;
+    try {
+      await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/schedules/${scheduleid}`, {
+        method: 'DELETE'
+      });
+      setTimetableSchedules(prev => prev.filter(s => s.scheduleid !== scheduleid));
+    } catch (error) {
+      console.error('Failed to delete schedule', error);
+    }
+  };
+
+  // --- ATTENDANCE TRACKING FUNCTIONS ---
+  const fetchTrackingClasses = async () => {
+    if (dataCache.current.trackingClasses) {
+      setTrackingClasses(dataCache.current.trackingClasses);
+    } else {
+      setIsTrackingLoading(true);
+    }
+    try {
+      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/classes');
+      const data = await res.json();
+      setTrackingClasses(data);
+      dataCache.current.trackingClasses = data;
+    } catch (error) {
+      console.error('Failed to fetch tracking classes', error);
+    }
+    setIsTrackingLoading(false);
+  };
+
+  const fetchTrackingSessions = async (classid) => {
+    if (dataCache.current.trackingSessions[classid]) {
+      setTrackingSessions(dataCache.current.trackingSessions[classid]);
+      setTrackingLevel('sessions');
+    } else {
+      setIsTrackingLoading(true);
+    }
+    try {
+      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/classes/${classid}/sessions`);
+      const data = await res.json();
+      setTrackingSessions(data);
+      dataCache.current.trackingSessions[classid] = data;
+      setTrackingLevel('sessions');
+    } catch (error) {
+      console.error('Failed to fetch tracking sessions', error);
+    }
+    setIsTrackingLoading(false);
+  };
+
+  const fetchTrackingLogs = async (sessionid) => {
+    if (dataCache.current.trackingLogs[sessionid]) {
+      setTrackingLogs(dataCache.current.trackingLogs[sessionid]);
+      setTrackingLevel('log');
+    } else {
+      setIsTrackingLoading(true);
+    }
+    try {
+      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/sessions/${sessionid}/log`);
+      const data = await res.json();
+      setTrackingLogs(data);
+      dataCache.current.trackingLogs[sessionid] = data;
+      setTrackingLevel('log');
+    } catch (error) {
+      console.error('Failed to fetch tracking logs', error);
+    }
+    setIsTrackingLoading(false);
+  };
+
+  const handleTrackingClassClick = (cls) => {
+    setSelectedTrackingClass(cls);
+    fetchTrackingSessions(cls.classid);
+  };
+
+  const handleTrackingSessionClick = (session) => {
+    setSelectedTrackingSession(session);
+    fetchTrackingLogs(session.sessionid);
+  };
 
   const handleClassClick = async (cls) => {
     setSelectedClass(cls);
@@ -393,6 +602,20 @@ const AdminDashboard = ({ onLogout }) => {
       return;
     }
     
+    // OPTIMISTIC RENDER
+    const previousAttendanceData = { ...attendanceData };
+    const newData = { ...attendanceData, attendance: [...(attendanceData.attendance || [])] };
+    updates.forEach(update => {
+      const idx = newData.attendance.findIndex(a => a.studentid === update.studentid && a.sessionid === update.sessionid);
+      if (idx !== -1) {
+        newData.attendance[idx] = { ...newData.attendance[idx], status: update.status };
+      } else {
+        newData.attendance.push({ studentid: update.studentid, sessionid: update.sessionid, status: update.status, minutelate: 0 });
+      }
+    });
+    setAttendanceData(newData);
+    setIsEditingAttendance(false);
+    
     setIsSavingAttendance(true);
     try {
       const res = await fetch('/api/attendance/bulk', {
@@ -400,32 +623,17 @@ const AdminDashboard = ({ onLogout }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates })
       });
-      if (res.ok) {
-        const newData = { ...attendanceData };
-        newData.attendance = [...newData.attendance];
-        
-        updates.forEach(update => {
-          const idx = newData.attendance.findIndex(a => a.studentid === update.studentid && a.sessionid === update.sessionid);
-          if (idx !== -1) {
-            newData.attendance[idx] = { ...newData.attendance[idx], status: update.status };
-          } else {
-            newData.attendance.push({ studentid: update.studentid, sessionid: update.sessionid, status: update.status, minutelate: 0 });
-          }
-        });
-        
-        setAttendanceData(newData);
-        if (dataCache.current.attendance[selectedSchedule.scheduleid]) {
-           dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
-        }
-        
-        setIsEditingAttendance(false);
-        setEditedAttendance({});
-      } else {
-        alert('Failed to save attendance');
+      if (!res.ok) throw new Error('Failed to save attendance');
+      
+      if (dataCache.current.attendance[selectedSchedule.scheduleid]) {
+         dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
       }
+      setEditedAttendance({});
     } catch (e) {
       console.error(e);
-      alert('Failed to save attendance');
+      alert('Failed to save attendance, changes reverted.');
+      setAttendanceData(previousAttendanceData); // Rollback
+      setIsEditingAttendance(true); // Re-open edit mode
     }
     setIsSavingAttendance(false);
   };
@@ -445,6 +653,20 @@ const AdminDashboard = ({ onLogout }) => {
   const enrollStudent = async (studentIdToEnroll) => {
     if (!studentIdToEnroll || studentIdToEnroll.trim() === '') return;
     
+    const studentObj = unenrolledStudents.find(s => s.studentid === studentIdToEnroll);
+    const previousAttendanceData = { ...attendanceData };
+    let newData = null;
+    
+    if (studentObj && attendanceData) {
+      // OPTIMISTIC RENDER
+      newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
+      newData.students.push({ studentid: studentObj.studentid, fullname: studentObj.fullname, profilepicture: studentObj.profilepicture });
+      newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
+      setAttendanceData(newData);
+      setUnenrolledStudents(prev => prev.filter(s => s.studentid !== studentIdToEnroll));
+      setShowAddStudentModal(false);
+    }
+    
     try {
       const res = await fetch(`/api/classes/${selectedClass.classid}/enroll`, {
         method: 'POST',
@@ -453,27 +675,28 @@ const AdminDashboard = ({ onLogout }) => {
       });
       
       const responseData = await res.json();
+      if (!res.ok) throw new Error(responseData.error || 'Unknown error');
       
-      if (res.ok) {
-        // Use student data returned from server
+      if (!studentObj) {
         const student = responseData.student;
-        const newData = { ...attendanceData };
-        newData.students = [...newData.students, { studentid: student.studentid, fullname: student.fullname, profilepicture: student.profilepicture }];
+        newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
+        newData.students.push({ studentid: student.studentid, fullname: student.fullname, profilepicture: student.profilepicture });
         newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
         setAttendanceData(newData);
-        
-        if (dataCache.current.attendance[selectedSchedule.scheduleid]) {
-           dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
-        }
-        
         setShowAddStudentModal(false);
-        setEnrollSearchQuery(''); // reset
-      } else {
-        alert('Failed to enroll student: ' + (responseData.error || 'Unknown error'));
       }
+      
+      if (newData && dataCache.current.attendance[selectedSchedule.scheduleid]) {
+         dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
+      }
+      setEnrollSearchQuery(''); // reset
     } catch (e) {
       console.error(e);
-      alert('Failed to enroll student. Ensure backend is running.');
+      alert('Failed to enroll student, changes reverted.');
+      if (studentObj && attendanceData) {
+        setAttendanceData(previousAttendanceData); // Rollback
+        setUnenrolledStudents(prev => [...prev, studentObj]); // Put back
+      }
     }
   };
 
@@ -483,7 +706,7 @@ const AdminDashboard = ({ onLogout }) => {
   }).toUpperCase();
 
   // --- DYNAMIC THEME CLASSES ---
-  const appBg = isDark ? "bg-black" : "bg-[#f4f6f8]";
+  const appBg = isDark ? "bg-black" : "bg-[#e2e8f0]";
   const surfaceBg = isDark ? "bg-black" : "bg-white";
   const borderColor = isDark ? "border-white/10" : "border-[#f1f5f9]";
   const borderSubColor = isDark ? "border-white/5 divide-white/5" : "border-gray-200 divide-gray-200";
@@ -492,7 +715,7 @@ const AdminDashboard = ({ onLogout }) => {
   const subBg = isDark ? "bg-white/5" : "bg-gray-50";
   const hoverBg = isDark ? "hover:bg-white/5" : "hover:bg-gray-50";
   
-  const navActiveBg = isDark ? "bg-white/10 text-cyan-400" : "bg-indigo-50 text-indigo-600";
+  const navActiveBg = isDark ? "bg-white/10 text-cyan-400" : "bg-indigo-600 text-white shadow-md shadow-indigo-600/20";
   const navInactiveBg = isDark ? "text-gray-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-gray-50 hover:text-indigo-600";
   const brandColor = isDark ? "text-cyan-400" : "text-indigo-600";
   const buttonHoverText = isDark ? 'hover:text-cyan-400' : 'hover:text-indigo-600';
@@ -542,6 +765,7 @@ const AdminDashboard = ({ onLogout }) => {
   const viewTitles = {
     dashboard: 'Admin Dashboard',
     database: 'User Database',
+    entities: 'Entity Database',
     biometric: 'Biometric Enrollment',
     timetable: 'Schedule / Time Table Management',
     classes: 'Class Management',
@@ -573,11 +797,7 @@ const AdminDashboard = ({ onLogout }) => {
                 <LayoutDashboard className={`w-5 h-5 mr-3 ${activeView === 'dashboard' ? '' : 'opacity-70'}`} /> Dashboard
               </button>
             </li>
-            <li>
-              <button onClick={() => setActiveView('database')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'database' ? navActiveBg : navInactiveBg}`}>
-                <Database className={`w-5 h-5 mr-3 ${activeView === 'database' ? '' : 'opacity-70'}`} /> User Database
-              </button>
-            </li>
+
             <li>
               <button onClick={() => setActiveView('entities')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'entities' ? navActiveBg : navInactiveBg}`}>
                 <Users className={`w-5 h-5 mr-3 ${activeView === 'entities' ? '' : 'opacity-70'}`} /> Entity Database
@@ -634,7 +854,9 @@ const AdminDashboard = ({ onLogout }) => {
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className={`h-20 ${surfaceBg} border-b ${borderColor} flex items-center justify-between px-8 z-10 transition-colors duration-500 shrink-0`}>
           <div className="flex items-center gap-4 text-sm font-medium">
-            <span className={`${brandColor} font-bold text-lg`}>{viewTitles[activeView]}</span>
+            <span className={`${brandColor} font-bold text-lg flex items-center`}>
+              {viewTitles[activeView]}
+            </span>
           </div>
           
           <div className="flex items-center gap-5">
@@ -654,8 +876,48 @@ const AdminDashboard = ({ onLogout }) => {
           </div>
         </header>
 
-        <div className={`flex-1 overflow-y-auto p-6 ${appBg} transition-colors duration-500`}>
-          <div className="w-full h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div 
+          id="main-scroll-container"
+          className={`flex-1 overflow-y-auto px-6 pt-6 pb-6 ${appBg} transition-colors duration-500`}
+          onScroll={(e) => {
+            if (activeView === 'entities') {
+              const currentScrollY = e.target.scrollTop;
+              const searchContainer = document.getElementById('entity-search-container');
+              const stickyZone = document.getElementById('entity-sticky-zone');
+              if (!searchContainer || !stickyZone) return;
+              
+              const lastScrollY = parseInt(searchContainer.dataset.lastScroll || '0', 10);
+              const delta = currentScrollY - lastScrollY;
+              
+              // Only process significant scroll deltas to avoid micro-jitters
+              if (Math.abs(delta) > 5) {
+                searchContainer.dataset.lastScroll = currentScrollY;
+                const isCollapsed = searchContainer.dataset.collapsed === 'true';
+                
+                if (currentScrollY < 150) {
+                  // Always visible near top
+                  if (isCollapsed) {
+                    stickyZone.style.transform = 'translateY(0px)';
+                    searchContainer.style.opacity = '1';
+                    searchContainer.dataset.collapsed = 'false';
+                  }
+                } else if (delta > 0 && !isCollapsed) {
+                  // Scrolling down: visually translate it up instead of changing layout height
+                  const h = searchContainer.offsetHeight || 120;
+                  stickyZone.style.transform = `translateY(-${h}px)`;
+                  searchContainer.style.opacity = '0';
+                  searchContainer.dataset.collapsed = 'true';
+                } else if (delta < -15 && isCollapsed) {
+                  // Scrolling up: uncollapse
+                  stickyZone.style.transform = 'translateY(0px)';
+                  searchContainer.style.opacity = '1';
+                  searchContainer.dataset.collapsed = 'false';
+                }
+              }
+            }
+          }}
+        >
+          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pt-3">
             
             {activeView === 'dashboard' && (
               <div className="space-y-6 w-full">
@@ -780,171 +1042,693 @@ const AdminDashboard = ({ onLogout }) => {
             
             {/* --- NEW ATTENDANCE VIEW PLACEHOLDER --- */}
             {activeView === 'attendance' && (
-              <div className={`${cardStyle} items-center justify-center min-h-[400px]`}>
-                <CheckCircle className="w-16 h-16 text-gray-300 mb-4" />
-                <h2 className="text-xl font-bold text-gray-700">Attendance Tracking</h2>
-                <p className="text-gray-500 mt-2 text-center max-w-md">The attendance management interface will be displayed here.</p>
-              </div>
-            )}
-
-            {activeView === 'entities' && (
-              <div className={`${cardStyle} !p-0`}>
-                <div className={`p-6 pb-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-[22px]">Entity Database</h3>
-                    <span className={`text-[13px] font-semibold ${mutedText}`}>({entities.length} total)</span>
-                  </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                    <div className="relative flex-1 sm:flex-initial">
-                      <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
-                      <input 
-                        type="text" 
-                        placeholder="Search entities..." 
-                        value={entitySearchQuery}
-                        onChange={(e) => setEntitySearchQuery(e.target.value)}
-                        className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
-                      />
+              <div className="space-y-6">
+                {/* Header */}
+                {trackingLevel === 'classes' && (
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h1 className={`text-2xl font-bold ${textColor}`}>Attendance Tracking</h1>
+                      <p className={`${mutedText} mt-1`}>
+                        Select a class to view attendance sessions.
+                      </p>
                     </div>
-                    <button onClick={() => { setEditingEntity(null); setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' }); setShowEntityModal(true); }} className="px-4 py-2 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
-                      <Plus size={16} /> Add Entity
-                    </button>
                   </div>
-                </div>
-                <div className="custom-scrollbar pb-6 px-6 overflow-x-auto">
-                  <table className="w-full text-[13px] text-left whitespace-nowrap">
-                    <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
-                      <tr>
-                        <th className="px-4 py-4">Entity ID</th>
-                        <th className="px-4 py-4">User ID</th>
-                        <th className="px-4 py-4">Role ID</th>
-                        <th className="px-4 py-4">Username</th>
-                        <th className="px-4 py-4">Name</th>
-                        <th className="px-4 py-4">Role</th>
-                        <th className="px-4 py-4">Gender</th>
-                        <th className="px-4 py-4">DOB</th>
-                        <th className="px-4 py-4">Phone</th>
-                        <th className="px-4 py-4">Email</th>
-                        <th className="px-4 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y border-b ${borderSubColor}`}>
-                      {isEntitiesLoading ? (
-                        <tr><td colSpan="10" className="text-center py-4">Loading entities...</td></tr>
-                      ) : (
-                        entities.filter(e => {
-                          const parts = entitySearchQuery.split(' ');
-                          const filters = {};
-                          let text = '';
-                          parts.forEach(part => {
-                            if (part.includes('=')) {
-                              const [k, v] = part.split('=');
-                              if (k && v) filters[k.toLowerCase()] = v.toLowerCase();
-                            } else {
-                              text += part + ' ';
-                            }
-                          });
-                          text = text.trim().toLowerCase();
+                )}
 
-                          if (filters.eid && !String(e.eid).toLowerCase().includes(filters.eid)) return false;
-                          if (filters.uid && !String(e.userid || '').toLowerCase().includes(filters.uid)) return false;
-                          if (filters.role) {
-                            const r = filters.role;
-                            const isTShortcut = r === 't' || r === 'teacher' || r === 'lecturer';
-                            const isSShortcut = r === 's' || r === 'student';
-                            const isAShortcut = r === 'a' || r === 'admin';
+                {isTrackingLoading ? (
+                  <>
+                    {trackingLevel === 'classes' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <SkeletonCard />
+                        <SkeletonCard />
+                        <SkeletonCard />
+                      </div>
+                    )}
+                    {trackingLevel === 'sessions' && (
+                      <div className={`${surfaceBg} border ${borderColor} rounded-xl overflow-hidden shadow-sm`}>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                             <tbody>
+                               <SkeletonRow cols={5} />
+                               <SkeletonRow cols={5} />
+                               <SkeletonRow cols={5} />
+                             </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {trackingLevel === 'log' && (
+                      <div className="flex flex-col gap-6">
+                        <div className={`${surfaceBg} border ${borderColor} rounded-xl overflow-hidden shadow-sm`}>
+                          <div className={`px-6 py-4 border-b ${borderColor} flex justify-between items-center ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                            <div className={`h-4 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-48 animate-pulse`}></div>
+                            <div className={`h-4 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-24 animate-pulse`}></div>
+                          </div>
+                          <div className="overflow-x-auto p-4">
+                            <table className="w-full">
+                               <tbody>
+                                 <SkeletonRow cols={7} />
+                                 <SkeletonRow cols={7} />
+                               </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        <div className={`${surfaceBg} border ${borderColor} rounded-xl overflow-hidden shadow-sm`}>
+                          <div className={`px-6 py-4 border-b ${borderColor} flex justify-between items-center ${isDark ? 'bg-red-500/10' : 'bg-red-50'}`}>
+                            <div className={`h-4 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-32 animate-pulse`}></div>
+                            <div className={`h-4 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-24 animate-pulse`}></div>
+                          </div>
+                          <div className="overflow-x-auto p-4">
+                            <table className="w-full">
+                               <tbody>
+                                 <SkeletonRow cols={3} />
+                                 <SkeletonRow cols={3} />
+                               </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* LEVEL 1: Classes Grid */}
+                    {trackingLevel === 'classes' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {trackingClasses.map(cls => (
+                          <div 
+                            key={cls.classid} 
+                            onClick={() => handleTrackingClassClick(cls)}
+                            className={`${surfaceBg} border ${borderColor} rounded-xl p-6 hover:shadow-md cursor-pointer transition transform hover:-translate-y-1`}
+                          >
+                            <h3 className={`text-lg font-bold ${textColor}`}>{cls.classname}</h3>
+                            <p className={`text-sm ${mutedText} mb-4 font-bold`}>{cls.classcode}</p>
                             
-                            const isT = e.roleid === 2 || (e.rolename || '').toLowerCase().includes('teacher') || (e.rolename || '').toLowerCase().includes('lecturer');
-                            const isS = e.roleid === 3 || (e.rolename || '').toLowerCase().includes('student');
-                            const isA = e.roleid === 1 || (e.rolename || '').toLowerCase().includes('admin');
-
-                            if (isTShortcut) {
-                              if (!isT) return false;
-                            } else if (isSShortcut) {
-                              if (!isS) return false;
-                            } else if (isAShortcut) {
-                              if (!isA) return false;
-                            } else {
-                              if (!(e.rolename || '').toLowerCase().includes(r)) return false;
-                            }
-                          }
-                          if (filters.gender && !(e.gender || '').toLowerCase().includes(filters.gender)) return false;
-                          if (filters.phone && !(e.phonenumber || '').toLowerCase().includes(filters.phone)) return false;
-                          if (filters.dob && !(e.dateofbirth || '').toLowerCase().includes(filters.dob)) return false;
-                          if ((filters.uname || filters.username) && !(e.username || '').toLowerCase().includes(filters.uname || filters.username)) return false;
-                          if (filters.email && !(e.email || '').toLowerCase().includes(filters.email)) return false;
-                          
-                          const roleSpecId = e.roleid === 1 || e.rolename?.toLowerCase() === 'admin' ? 'A' : e.roleid === 2 || e.rolename?.toLowerCase() === 'teacher' ? (e.lecturerid ? `T${String(e.lecturerid).padStart(4, '0')}` : 'T-') : (e.studentid ? `S${String(e.studentid).padStart(4, '0')}` : 'S-');
-                          if (filters.id && !roleSpecId.toLowerCase().includes(filters.id)) return false;
-                          
-                          const accVal = filters.account !== undefined ? filters.account : filters.acc;
-                          if (accVal !== undefined) {
-                            const hasAccount = !!e.userid;
-                            const wantsAccount = accVal === 'true' || accVal === '1' || accVal === 'yes';
-                            if (hasAccount !== wantsAccount) return false;
-                          }
-                          
-                          if (text) {
-                            if (!(e.fullname || '').toLowerCase().includes(text) &&
-                                !(e.username || '').toLowerCase().includes(text) &&
-                                !(e.email || '').toLowerCase().includes(text)) {
-                              return false;
-                            }
-                          }
-                          return true;
-                        }).map(e => (
-                          <tr key={e.eid} className={`${hoverBg} transition-colors group`}>
-                            <td className="px-4 py-3 font-mono text-xs">{e.eid}</td>
-                            <td className="px-4 py-3 font-mono text-xs">{e.userid || '-'}</td>
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{e.roleid === 1 || e.rolename?.toLowerCase() === 'admin' ? 'A' : e.roleid === 2 || e.rolename?.toLowerCase() === 'teacher' ? (e.lecturerid ? `T${String(e.lecturerid).padStart(4, '0')}` : 'T-') : (e.studentid ? `S${String(e.studentid).padStart(4, '0')}` : 'S-')}</td>
-                            <td className="px-4 py-3 font-bold">{e.username || '-'}</td>
-                            <td className="px-4 py-3">{e.fullname}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded text-[10px] font-bold ${e.roleid === 1 ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700') : e.roleid === 2 ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700') : (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700')}`}>
-                                {e.rolename}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">{e.gender}</td>
-                            <td className="px-4 py-3">{e.dateofbirth ? new Date(e.dateofbirth).toLocaleDateString() : '-'}</td>
-                            <td className="px-4 py-3">{e.phonenumber || '-'}</td>
-                            <td className="px-4 py-3">{e.email || '-'}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="relative inline-block text-left">
-                                <button onClick={() => setOpenMenuId(openMenuId === `entity-${e.eid}` ? null : `entity-${e.eid}`)} className={`p-1 rounded-md transition ${mutedText} hover:text-black dark:hover:text-white`}>
-                                  <MoreVertical size={16} />
-                                </button>
-                                {openMenuId === `entity-${e.eid}` && (
-                                  <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)}></div>
-                                    <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl z-50 py-1 border ${isDark ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-gray-100'}`}>
-                                      <div className="flex flex-col">
-                                        <button onClick={() => { 
-                                          setEditingEntity(e);
-                                          setNewEntity({
-                                            fullname: e.fullname || '', username: e.username || '', email: e.email || '', password: '', roleid: e.roleid || 3, gender: e.gender || 'Male', dateofbirth: e.dateofbirth ? new Date(e.dateofbirth).toISOString().split('T')[0] : '', phonenumber: e.phonenumber || ''
-                                          });
-                                          setShowEntityModal(true);
-                                          setOpenMenuId(null); 
-                                        }} className={`w-full px-5 py-2.5 text-[13px] font-bold flex items-center justify-between transition-colors ${isDark ? 'text-gray-100 hover:bg-white/5' : 'text-gray-900 hover:bg-gray-50'}`}>
-                                          Edit Entity <Pencil size={15} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                        </button>
-                                        <div className={`h-[1px] my-1 ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}></div>
-                                        <button onClick={() => { handleDeleteEntity(e.eid); setOpenMenuId(null); }} className={`w-full px-5 py-2.5 text-[13px] font-bold text-red-500 flex items-center justify-between transition-colors ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}>
-                                          Delete Entity <Trash2 size={15} className="text-red-500" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
+                            <div className={`p-4 rounded-lg ${isDark ? 'bg-indigo-500/10' : 'bg-indigo-50'} mb-4`}>
+                              <p className={`text-xs font-semibold ${isDark ? 'text-indigo-400' : 'text-indigo-600'} uppercase mb-1`}>Today's Subject</p>
+                              <p className={`font-medium ${textColor}`}>{cls.todaySubject || 'No class scheduled today'}</p>
+                            </div>
+                            
+                            {cls.todaySubject && (
+                              <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                  <span className={mutedText}>Attendance (Today)</span>
+                                  <span className={`font-bold ${textColor}`}>
+                                    {cls.presentCount} / {cls.total_enrolled}
+                                    {cls.lateCount > 0 && <span className="text-yellow-500 ml-1">({cls.lateCount} late)</span>}
+                                  </span>
+                                </div>
+                                <div className={`w-full h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className="h-2 rounded-full bg-green-500" 
+                                    style={{ width: `${cls.total_enrolled > 0 ? (cls.presentCount / cls.total_enrolled) * 100 : 0}%` }}
+                                  ></div>
+                                </div>
                               </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            )}
+                          </div>
+                        ))}
+                        {trackingClasses.length === 0 && (
+                          <div className={`col-span-full text-center py-12 ${mutedText}`}>No classes found.</div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* LEVEL 2: Sessions List */}
+                    {trackingLevel === 'sessions' && (
+                      <div className={`${cardStyle} !p-0 flex flex-col`}>
+                        <div className={`sticky top-0 z-20 rounded-t-3xl ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                          <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                            <div>
+                              <h3 className="font-extrabold text-[22px]">Attendance Tracking</h3>
+                              <p className={`${mutedText} mt-1 text-[13px] font-semibold`}>Viewing recent sessions for {selectedTrackingClass?.classname} ({selectedTrackingClass?.classcode})</p>
+                            </div>
+                            <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                              <div className="relative flex-1 sm:flex-initial">
+                                <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                                <input 
+                                  type="text" 
+                                  placeholder="Search subject or date..." 
+                                  value={sessionSearchQuery}
+                                  onChange={(e) => setSessionSearchQuery(e.target.value)}
+                                  className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
+                                />
+                              </div>
+                              <button onClick={() => setTrackingLevel('classes')} className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
+                                <ChevronLeft size={16} /> Back
+                              </button>
+                            </div>
+                          </div>
+                          <div className={`border-b-2 ${borderSubColor}`}>
+                            <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                              <colgroup>
+                                <col className="w-[15%]" />
+                                <col className="w-[20%]" />
+                                <col className="w-[25%]" />
+                                <col className="w-[25%]" />
+                                <col className="w-[15%]" />
+                              </colgroup>
+                              <thead>
+                                <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
+                                  <th className="px-4 py-4">Date</th>
+                                  <th className="px-4 py-4">Subject</th>
+                                  <th className="px-4 py-4">Time</th>
+                                  <th className="px-4 py-4">Attendance</th>
+                                  <th className="px-4 py-4 text-right">Action</th>
+                                </tr>
+                              </thead>
+                            </table>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto pb-4">
+                          <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                            <colgroup>
+                              <col className="w-[15%]" />
+                              <col className="w-[20%]" />
+                              <col className="w-[25%]" />
+                              <col className="w-[25%]" />
+                              <col className="w-[15%]" />
+                            </colgroup>
+                            <tbody className={`divide-y ${borderSubColor}`}>
+                              {(() => {
+                                const todayStr = new Date().toDateString();
+                                const hasToday = trackingSessions.some(s => new Date(s.sessiondate).toDateString() === todayStr);
+                                let displayList = [...trackingSessions];
+                                
+                                if (selectedTrackingClass?.todaySubject && !hasToday) {
+                                  displayList.unshift({
+                                    sessionid: 'mock-today',
+                                    sessiondate: new Date().toISOString(),
+                                    subject: selectedTrackingClass.todaySubject,
+                                    starttime: '07:00:00',
+                                    endtime: '11:00:00',
+                                    present_count: selectedTrackingClass.presentCount || 0,
+                                    late_count: 0,
+                                    total_enrolled: selectedTrackingClass.total_enrolled || 0,
+                                    isMock: true
+                                  });
+                                }
+                                
+                                const filteredList = displayList.filter(s => (s.subject || '').toLowerCase().includes(sessionSearchQuery.toLowerCase()) || new Date(s.sessiondate).toLocaleDateString().includes(sessionSearchQuery));
+                                
+                                if (filteredList.length === 0) {
+                                  return (
+                                    <tr>
+                                      <td colSpan="5" className={`px-4 py-8 text-center font-bold ${mutedText} italic`}>No sessions found.</td>
+                                    </tr>
+                                  );
+                                }
+                                
+                                return filteredList.map(session => {
+                                  const isToday = new Date(session.sessiondate).toDateString() === todayStr;
+                                  return (
+                                    <tr 
+                                      key={session.sessionid} 
+                                      onClick={() => handleTrackingSessionClick(session)}
+                                      className={`${hoverBg} transition-colors group cursor-pointer ${isToday ? (isDark ? 'bg-indigo-500/10' : 'bg-indigo-50/70') : ''}`}
+                                    >
+                                      <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">
+                                        <div className="flex items-center gap-2">
+                                          <span>{new Date(session.sessiondate).toLocaleDateString()}</span>
+                                          {isToday && <span className="text-[10px] uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 px-2 py-0.5 rounded font-extrabold">Today</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 font-bold truncate">{session.subject}</td>
+                                      <td className="px-4 py-3 font-bold text-gray-500 dark:text-gray-400">
+                                        {session.starttime} - {session.endtime}
+                                      </td>
+                                      <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-200">
+                                        {session.total_enrolled > 0 ? (
+                                          <span>
+                                            {session.present_count} / {session.total_enrolled}
+                                            {session.late_count > 0 && <span className="text-yellow-500 ml-1">({session.late_count} late)</span>}
+                                          </span>
+                                        ) : 'N/A'}
+                                      </td>
+                                      <td className="px-4 py-3 font-bold text-right">
+                                        <button className="text-indigo-500 hover:text-indigo-600 font-bold transition-colors">View Log &rarr;</button>
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* LEVEL 3: Scan Log */}
+                    {trackingLevel === 'log' && (
+                      <div className="flex flex-col gap-6">
+                        {/* Present/Late Table */}
+                        <div className={`${cardStyle} !p-0 flex flex-col`}>
+                          <div className={`sticky top-0 z-20 rounded-t-3xl ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                            <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                              <div>
+                                <h3 className="font-extrabold text-[22px]">Attendance Tracking</h3>
+                                <p className={`${mutedText} mt-1 text-[13px] font-semibold`}>Live attendance log for {selectedTrackingSession?.subject} on {selectedTrackingSession ? new Date(selectedTrackingSession.sessiondate).toLocaleDateString() : ''}</p>
+                              </div>
+                              <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                                <div className="relative flex-1 sm:flex-initial">
+                                  <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Search student..." 
+                                    value={logSearchQuery}
+                                    onChange={(e) => setLogSearchQuery(e.target.value)}
+                                    className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
+                                  />
+                                </div>
+                                <button onClick={() => setTrackingLevel('sessions')} className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
+                                  <ChevronLeft size={16} /> Back
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className={`px-6 py-4 border-t border-b ${borderColor} flex justify-between items-center ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                              <h3 className={`font-bold ${textColor}`}>Present & Late Students</h3>
+                              <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>Total: {trackingLogs.filter(log => log.status !== 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || (log.studentid?.toString().includes(logSearchQuery)) || log.eid.toString().includes(logSearchQuery))).length}</span>
+                            </div>
+
+                            <div className={`border-b-2 ${borderSubColor}`}>
+                              <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                                <colgroup>
+                                  <col className="w-[15%]" />
+                                  <col className="w-[20%]" />
+                                  <col className="w-[10%]" />
+                                  <col className="w-[10%]" />
+                                  <col className="w-[45%]" />
+                                </colgroup>
+                                <thead>
+                                  <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
+                                    <th className="px-4 py-4">StudentID</th>
+                                    <th className="px-4 py-4">Name</th>
+                                    <th className="px-4 py-4">Class</th>
+                                    <th className="px-4 py-4">Time In</th>
+                                    <th className="px-4 py-4">Status</th>
+                                  </tr>
+                                </thead>
+                              </table>
+                            </div>
+                          </div>
+                          
+                          <div className="overflow-x-auto pb-4">
+                            <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                              <colgroup>
+                                <col className="w-[15%]" />
+                                <col className="w-[20%]" />
+                                <col className="w-[10%]" />
+                                <col className="w-[10%]" />
+                                <col className="w-[45%]" />
+                              </colgroup>
+                              <tbody className={`divide-y ${borderSubColor}`}>
+                                {trackingLogs
+                                  .filter(log => log.status !== 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery)))
+                                  .map((log, index) => (
+                                  <tr key={index} className={`${hoverBg} transition-colors group`}>
+                                    <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">
+                                      {log.studentid || log.eid}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold truncate">{log.fullname}</td>
+                                    <td className="px-4 py-3 font-bold truncate">{selectedTrackingClass?.classname || 'Unknown'}</td>
+                                    <td className="px-4 py-3 font-bold text-gray-500 dark:text-gray-400">
+                                      {log.time_in ? log.time_in.substring(0, 5) : 'N/A'}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${log.status === 'Present' ? (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700') : (isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700')}`}>
+                                          {log.status}
+                                        </span>
+                                        {log.status === 'Late' && (
+                                          <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            ({Math.round(log.minutes_late)} mins)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {trackingLogs.filter(log => log.status !== 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery))).length === 0 && (
+                                  <tr>
+                                    <td colSpan="5" className={`px-4 py-8 text-center font-bold ${mutedText} italic`}>No scans found.</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Absent Table */}
+                        <div className={`${cardStyle} !p-0 flex flex-col`}>
+                          <div className={`sticky top-0 z-10 rounded-t-3xl ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                            <div className={`px-6 py-4 border-b rounded-t-3xl ${borderColor} flex justify-between items-center ${isDark ? 'bg-red-500/5' : 'bg-red-50'}`}>
+                              <h3 className={`font-extrabold text-[15px] ${isDark ? 'text-red-400' : 'text-red-700'}`}>Absent Students</h3>
+                              <span className={`text-xs px-2 py-1 rounded-full font-bold ${isDark ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700'}`}>
+                                Total: {trackingLogs.filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery))).length}
+                              </span>
+                            </div>
+                            <div className={`border-b-2 ${borderSubColor}`}>
+                              <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                                <colgroup>
+                                  <col className="w-[20%]" />
+                                  <col className="w-[60%]" />
+                                  <col className="w-[20%]" />
+                                </colgroup>
+                                <thead>
+                                  <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
+                                    <th className="px-4 py-4">StudentID</th>
+                                    <th className="px-4 py-4">Name</th>
+                                    <th className="px-4 py-4">Status</th>
+                                  </tr>
+                                </thead>
+                              </table>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto pb-4">
+                            <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                              <colgroup>
+                                <col className="w-[20%]" />
+                                <col className="w-[60%]" />
+                                <col className="w-[20%]" />
+                              </colgroup>
+                              <tbody className={`divide-y ${borderSubColor}`}>
+                                {trackingLogs
+                                  .filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery)))
+                                  .map((log, index) => (
+                                  <tr key={index} className={`hover:${isDark ? 'bg-red-500/5' : 'bg-red-50'} transition-colors group`}>
+                                    <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">
+                                      {log.studentid || log.eid}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold truncate">{log.fullname}</td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 rounded text-[10px] font-bold ${isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
+                                        Absent
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {trackingLogs.filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery))).length === 0 && (
+                                  <tr>
+                                    <td colSpan="3" className={`px-4 py-8 text-center font-bold ${mutedText} italic`}>No absent students.</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
+
+            {activeView === 'entities' && (() => {
+              const roleData = [
+                { name: 'Admin', value: entities.filter(e => e.roleid === 1 || e.rolename?.toLowerCase() === 'admin').length, color: '#ef4444' },
+                { name: 'Teacher', value: entities.filter(e => e.roleid === 2 || e.rolename?.toLowerCase() === 'teacher' || e.rolename?.toLowerCase() === 'lecturer').length, color: '#3b82f6' },
+                { name: 'Student', value: entities.filter(e => e.roleid === 3 || e.rolename?.toLowerCase() === 'student').length, color: '#22c55e' }
+              ].filter(d => d.value > 0);
+
+              const genderData = [
+{ name: 'Male', value: entities.filter(e => e.gender?.toLowerCase() === 'male').length, color: '#0ea5e9' },
+                { name: 'Female', value: entities.filter(e => e.gender?.toLowerCase() === 'female').length, color: '#ec4899' }
+              ].filter(d => d.value > 0);
+
+              return (
+              <div className="flex flex-col gap-12">
+                {/* Stat Cards — scroll away naturally */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 shrink-0 h-36">
+                  <div className={`${cardStyle} flex flex-col justify-center px-8`}>
+                    <div className="flex justify-between items-start">
+                      <h4 className={`text-xs font-extrabold uppercase tracking-widest ${mutedText} mb-2`}>Total Entities</h4>
+                      <Users className={`w-5 h-5 ${mutedText} opacity-50`} />
+                    </div>
+                    <span className="text-4xl font-extrabold">{entities.length}</span>
+                  </div>
+
+                  <div className={`${cardStyle} flex flex-col justify-center px-8`}>
+                    <div className="flex justify-between items-start">
+                      <h4 className={`text-xs font-extrabold uppercase tracking-widest ${mutedText} mb-2`}>Total Users</h4>
+                      <UserPlus className={`w-5 h-5 ${mutedText} opacity-50`} />
+                    </div>
+                    <span className="text-4xl font-extrabold">{entities.filter(e => e.userid).length}</span>
+                  </div>
+                  
+                  <div className={`${cardStyle} flex flex-row items-center p-4 px-6`}>
+                    <div className="flex-1 flex flex-col justify-center">
+                      <h4 className={`text-xs font-extrabold uppercase tracking-widest ${mutedText} mb-3`}>Roles</h4>
+                      <div className="text-[11px] font-bold space-y-2">
+                        {roleData.map(d => (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }}></span>
+                            <span className={mutedText}>{d.name}:</span>
+                            <span>{d.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-24 h-24 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={roleData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={25} outerRadius={45} stroke="none" paddingAngle={2}>
+                            {roleData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className={`${cardStyle} flex flex-row items-center p-4 px-6`}>
+                    <div className="flex-1 flex flex-col justify-center">
+                      <h4 className={`text-xs font-extrabold uppercase tracking-widest ${mutedText} mb-3`}>Gender</h4>
+                      <div className="text-[11px] font-bold space-y-2">
+                        {genderData.map(d => (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }}></span>
+                            <span className={mutedText}>{d.name}:</span>
+                            <span>{d.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-24 h-24 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={genderData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={25} outerRadius={45} stroke="none" paddingAngle={2}>
+                            {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table card — page scroll, no internal scrollbar */}
+                <div className={`${cardStyle} !p-0`}>
+                  {/* Sticky zone: Directory bar (collapsible) + column headers (always visible) */}
+                  {/* -top-6 perfectly counteracts the pt-6 on the main-scroll-container, eliminating the gap */}
+                  <div id="entity-sticky-zone" className={`sticky -top-6 z-20 rounded-t-3xl transition-transform duration-300 ease-in-out ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                    <div
+                      id="entity-search-container"
+                      className="transition-opacity duration-300 ease-in-out"
+                      style={{ opacity: 1 }}
+                    >
+                    <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-[22px]">Directory</h3>
+                      </div>
+                      <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                        <div className="relative flex-1 sm:flex-initial">
+                          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                          <input 
+                            type="text" 
+                            placeholder="Search (try role=student gender=male)..." 
+                            value={entitySearchQuery}
+                            onChange={(e) => setEntitySearchQuery(e.target.value)}
+                            className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
+                          />
+                        </div>
+                        <button onClick={() => { setEditingEntity(null); setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' }); setShowEntityModal(true); }} className="px-4 py-2 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
+                          <Plus size={16} /> Add Entity
+                        </button>
+                      </div>
+                    </div>
+                    </div>
+                    {/* Column headers — always visible as part of sticky zone */}
+                    <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                      <colgroup>
+                        <col className="w-[6%]" />
+                        <col className="w-[6%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[17%]" />
+                        <col className="w-[8%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[14%]" />
+                        <col className="w-[10%]" />
+                      </colgroup>
+                      <thead>
+                        <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-t border-b-2 ${borderSubColor}`}>
+                          <th className="pl-8 pr-4 py-4">Entity ID</th>
+                          <th className="px-4 py-4">User ID</th>
+                          <th className="px-4 py-4">Role ID</th>
+                          <th className="px-4 py-4">Username</th>
+                          <th className="px-4 py-4">Name</th>
+                          <th className="px-4 py-4">Role</th>
+                          <th className="px-4 py-4">Gender</th>
+                          <th className="px-4 py-4">DOB</th>
+                          <th className="px-4 py-4">Phone</th>
+                          <th className="px-4 py-4">Email</th>
+                          <th className="px-4 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+
+                  {/* Body table — identical colgroup so columns align perfectly */}
+                  <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
+                      <colgroup>
+                        <col className="w-[6%]" />
+                        <col className="w-[6%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[17%]" />
+                        <col className="w-[8%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[14%]" />
+                        <col className="w-[10%]" />
+                      </colgroup>
+                      <tbody className={`divide-y ${borderSubColor}`}>
+                        {isEntitiesLoading ? (
+                          <>
+                            <SkeletonRow cols={11} />
+                            <SkeletonRow cols={11} />
+                            <SkeletonRow cols={11} />
+                            <SkeletonRow cols={11} />
+                            <SkeletonRow cols={11} />
+                          </>
+                        ) : (
+                          entities.filter(e => {
+                            const parts = entitySearchQuery.split(' ');
+                            const filters = {};
+                            let text = '';
+                            parts.forEach(part => {
+                              if (part.includes('=')) {
+                                const [k, v] = part.split('=');
+                                if (k && v) filters[k.toLowerCase()] = v.toLowerCase();
+                              } else {
+                                text += part + ' ';
+                              }
+                            });
+                            text = text.trim().toLowerCase();
+
+                            if (filters.eid && !String(e.eid).toLowerCase().includes(filters.eid)) return false;
+                            if (filters.uid && !String(e.userid || '').toLowerCase().includes(filters.uid)) return false;
+                            if (filters.role) {
+                              const r = filters.role;
+                              const isTShortcut = r === 't' || r === 'teacher' || r === 'lecturer';
+                              const isSShortcut = r === 's' || r === 'student';
+                              const isAShortcut = r === 'a' || r === 'admin';
+                              
+                              const isT = e.roleid === 2 || (e.rolename || '').toLowerCase().includes('teacher') || (e.rolename || '').toLowerCase().includes('lecturer');
+                              const isS = e.roleid === 3 || (e.rolename || '').toLowerCase().includes('student');
+                              const isA = e.roleid === 1 || (e.rolename || '').toLowerCase().includes('admin');
+
+                              if (isTShortcut) {
+                                if (!isT) return false;
+                              } else if (isSShortcut) {
+                                if (!isS) return false;
+                              } else if (isAShortcut) {
+                                if (!isA) return false;
+                              } else {
+                                if (!(e.rolename || '').toLowerCase().includes(r)) return false;
+                              }
+                            }
+                            if (filters.gender && !(e.gender || '').toLowerCase().includes(filters.gender)) return false;
+                            if (filters.phone && !(e.phonenumber || '').toLowerCase().includes(filters.phone)) return false;
+                            if (filters.dob && !(e.dateofbirth || '').toLowerCase().includes(filters.dob)) return false;
+                            if ((filters.uname || filters.username) && !(e.username || '').toLowerCase().includes(filters.uname || filters.username)) return false;
+                            if (filters.email && !(e.email || '').toLowerCase().includes(filters.email)) return false;
+                            
+                            const roleSpecId = e.roleid === 1 || e.rolename?.toLowerCase() === 'admin' ? 'A' : e.roleid === 2 || e.rolename?.toLowerCase() === 'teacher' ? (e.lecturerid ? `T${String(e.lecturerid).padStart(4, '0')}` : `T${String(e.eid).padStart(4, '0')}`) : (e.studentid ? `S${String(e.studentid).padStart(4, '0')}` : `S${String(e.eid).padStart(4, '0')}`);
+                            if (filters.id && !roleSpecId.toLowerCase().includes(filters.id)) return false;
+                            
+                            const accVal = filters.account !== undefined ? filters.account : filters.acc;
+                            if (accVal !== undefined) {
+                              const hasAccount = !!e.userid;
+                              const wantsAccount = accVal === 'true' || accVal === '1' || accVal === 'yes';
+                              if (hasAccount !== wantsAccount) return false;
+                            }
+                            
+                            if (text) {
+                              if (!(e.fullname || '').toLowerCase().includes(text) &&
+                                  !(e.username || '').toLowerCase().includes(text) &&
+                                  !(e.email || '').toLowerCase().includes(text)) {
+                                return false;
+                              }
+                            }
+                            return true;
+                          }).map(e => (
+                            <tr key={e.eid} className={`${hoverBg} transition-colors group`}>
+                              <td className="pl-8 pr-4 py-3 font-bold truncate">{e.eid}</td>
+                              <td className="px-4 py-3 font-bold truncate">{e.userid || '-'}</td>
+                              <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400 truncate">{e.roleid === 1 || e.rolename?.toLowerCase() === 'admin' ? 'A' : e.roleid === 2 || e.rolename?.toLowerCase() === 'teacher' ? (e.lecturerid ? `T${String(e.lecturerid).padStart(4, '0')}` : `T${String(e.eid).padStart(4, '0')}`) : (e.studentid ? `S${String(e.studentid).padStart(4, '0')}` : e.roleid ? `S${String(e.eid).padStart(4, '0')}` : '-')}</td>
+                              <td className="px-4 py-3 font-bold truncate">{e.username || '-'}</td>
+                              <td className="px-4 py-3 font-bold truncate">{e.fullname}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${e.roleid === 1 ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700') : e.roleid === 2 ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700') : (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700')}`}>
+                                  {e.rolename || '-'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-bold truncate">{e.gender || '-'}</td>
+                              <td className="px-4 py-3 font-bold truncate">{e.dateofbirth ? new Date(e.dateofbirth).toLocaleDateString() : '-'}</td>
+                              <td className="px-4 py-3 font-bold truncate">{e.phonenumber || '-'}</td>
+                              <td className="px-4 py-3 font-bold truncate text-gray-500">{e.email || '-'}</td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="relative inline-block text-left">
+                                  <button onClick={() => setOpenMenuId(openMenuId === `entity-${e.eid}` ? null : `entity-${e.eid}`)} className={`p-1 rounded-md transition ${mutedText} hover:text-black dark:hover:text-white`}>
+                                    <MoreVertical size={16} />
+                                  </button>
+                                  {openMenuId === `entity-${e.eid}` && (
+                                    <>
+                                      <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)}></div>
+                                      <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl z-50 py-1 border ${isDark ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-gray-100'}`}>
+                                        <div className="flex flex-col">
+                                          <button onClick={() => { 
+                                            setEditingEntity(e);
+                                            setNewEntity({
+                                              fullname: e.fullname || '', username: e.username || '', email: e.email || '', password: '', roleid: e.roleid || 3, gender: e.gender || 'Male', dateofbirth: e.dateofbirth ? new Date(e.dateofbirth).toISOString().split('T')[0] : '', phonenumber: e.phonenumber || ''
+                                            });
+                                            setShowEntityModal(true);
+                                            setOpenMenuId(null); 
+                                          }} className={`w-full px-5 py-2.5 text-[13px] font-bold flex items-center justify-between transition-colors ${isDark ? 'text-gray-100 hover:bg-white/5' : 'text-gray-900 hover:bg-gray-50'}`}>
+                                            Edit Entity <Pencil size={15} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                          </button>
+                                          <div className={`h-[1px] my-1 ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}></div>
+                                          <button onClick={() => { handleDeleteEntity(e.eid); setOpenMenuId(null); }} className={`w-full px-5 py-2.5 text-[13px] font-bold text-red-500 flex items-center justify-between transition-colors ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}>
+                                            Delete Entity <Trash2 size={15} className="text-red-500" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                </div>
+              </div>
+              )
+            })()}
 
             {activeView === 'database' && (
               <div className={`${cardStyle} !p-0`}>
@@ -981,6 +1765,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <th className="px-6 py-4">Full Name</th>
                         <th className="px-6 py-4">Email</th>
                         <th className="px-6 py-4">Role</th>
+                        <th className="px-6 py-4">Date Created</th>
                         <th className="px-6 py-4">Last Active</th>
                         <th className="px-6 py-4 text-right"></th>
                       </tr>
@@ -988,12 +1773,12 @@ const AdminDashboard = ({ onLogout }) => {
                     <tbody className={`divide-y border-b ${borderSubColor}`}>
                       {isUsersLoading ? (
                         <>
-                          <SkeletonRow cols={6} />
-                          <SkeletonRow cols={6} />
-                          <SkeletonRow cols={6} />
+                          <SkeletonRow cols={7} />
+                          <SkeletonRow cols={7} />
+                          <SkeletonRow cols={7} />
                         </>
                       ) : filteredUsers.length === 0 ? (
-                        <tr><td colSpan="6" className={`text-center py-8 font-bold ${mutedText}`}>No users found matching filters.</td></tr>
+                        <tr><td colSpan="7" className={`text-center py-8 font-bold ${mutedText}`}>No users found matching filters.</td></tr>
                       ) : (
                       filteredUsers.map((user, index) => (
                           <tr key={user.id} className={`${hoverBg} transition-colors group`}>
@@ -1005,6 +1790,7 @@ const AdminDashboard = ({ onLogout }) => {
                                 {user.role}
                               </span>
                             </td>
+                            <td className="px-6 py-4 font-bold">{user.createdat}</td>
                             <td className="px-6 py-4 font-bold">{user.lastlogin}</td>
                             <td className="px-6 py-4 text-right">
                               <div className="relative inline-block text-left">
@@ -1085,9 +1871,9 @@ const AdminDashboard = ({ onLogout }) => {
             {/* --- 3. BIOMETRIC ENROLLMENT VIEW (Shows ONLY Students) --- */}
             {activeView === 'biometric' && (
               <div className={`${cardStyle} !p-0 overflow-hidden`}>
-                <div className={`p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
+                <div className={`p-6 pb-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderColor}`}>
                   <div>
-                    <h3 className="font-bold text-lg">Biometric Enrollment</h3>
+                    <h3 className="font-extrabold text-[22px]">Biometric Enrollment</h3>
                     <p className={`text-xs ${mutedText} mt-1`}>Manage fingerprint data for registered students.</p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
@@ -1100,13 +1886,13 @@ const AdminDashboard = ({ onLogout }) => {
                 
                 <div className="overflow-x-auto p-6 pt-0 custom-scrollbar">
                   <table className="w-full text-sm text-left mt-4 whitespace-nowrap">
-                    <thead className={`text-xs ${mutedText} uppercase tracking-wider ${subBg}`}>
+                    <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
                       <tr>
-                        <th className="px-4 py-3 rounded-tl-lg font-semibold">User Details</th>
-                        <th className="px-4 py-3 font-semibold">Email</th>
-                        <th className="px-4 py-3 font-semibold">Phone Number</th>
-                        <th className="px-4 py-3 font-semibold">Fingerprint Status</th>
-                        <th className="px-4 py-3 font-semibold rounded-tr-lg text-right">Management Actions</th>
+                        <th className="px-4 py-4">User Details</th>
+                        <th className="px-4 py-4">Email</th>
+                        <th className="px-4 py-4">Phone Number</th>
+                        <th className="px-4 py-4">Fingerprint Status</th>
+                        <th className="px-4 py-4 text-right">Management Actions</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${borderSubColor}`}>
@@ -1125,22 +1911,22 @@ const AdminDashboard = ({ onLogout }) => {
                         return (
                           <tr key={student.studentid} className={`${hoverBg} transition-colors group`}>
                             
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-2">
                               <div>
                                 <span className="block font-bold text-[14px] mb-1">{student.fullname}</span>
-                                <span className={`text-[11px] ${mutedText} block`}>ID: {String(student.studentid).padStart(4, '0')}</span>
+                                <span className={`text-[11px] font-bold ${mutedText} block`}>ID: {String(student.studentid).padStart(4, '0')}</span>
                               </div>
                             </td>
 
-                            <td className="px-4 py-4">
-                              <span className="text-[13px] font-medium">{student.email || '—'}</span>
+                            <td className="px-4 py-2">
+                              <span className="text-[13px] font-bold">{student.email || '—'}</span>
                             </td>
 
-                            <td className="px-4 py-4">
-                              <span className="text-[13px] font-medium">{student.phonenumber || '—'}</span>
+                            <td className="px-4 py-2">
+                              <span className="text-[13px] font-bold">{student.phonenumber || '—'}</span>
                             </td>
 
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-2">
                               <div>
                                 <span className={`text-[12px] font-bold flex items-center gap-1.5 ${isRegistered ? 'text-green-500' : 'text-red-500'}`}>
                                   {isRegistered ? <CheckCircle size={14} /> : <XCircle size={14} />}
@@ -1152,7 +1938,7 @@ const AdminDashboard = ({ onLogout }) => {
                               </div>
                             </td>
 
-                            <td className="px-4 py-4 text-right space-x-2">
+                            <td className="px-4 py-2 text-right space-x-2">
                               <button
                                 title="Add Fingerprint"
                                 className={`p-2 rounded-lg transition shadow-sm font-bold ${isDark ? 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-slate-900' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'}`}
@@ -1180,40 +1966,151 @@ const AdminDashboard = ({ onLogout }) => {
 
             {activeView === 'timetable' && (
               <div className={`${cardStyle}`}>
-                <div className="flex justify-between items-center mb-6">
+                {!selectedTimetableClass ? (
                   <div>
-                    <h3 className="font-bold text-lg">Schedule / Timetable Management</h3>
-                    <p className={`text-xs ${mutedText} mt-1`}>Define active learning periods and subject schedules.</p>
+                    <div className="flex justify-between items-end mb-6">
+                      <div>
+                        <h3 className="font-bold text-lg">Select a Class for Timetable</h3>
+                        <p className={`text-xs ${mutedText} mt-1`}>Manage schedules by selecting a class below.</p>
+                      </div>
+                    </div>
+                    {isClassesLoading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                        <SkeletonCard />
+                        <SkeletonCard />
+                        <SkeletonCard />
+                      </div>
+                    ) : classes.length === 0 ? (
+                      <div className="text-center py-10 font-bold text-gray-500">No classes found.</div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {classes.map(cls => (
+                          <div key={cls.classid} onClick={() => handleTimetableClassClick(cls)} className={`border rounded-xl p-5 cursor-pointer hover:border-indigo-500 transition-colors ${borderSubColor} ${subBg}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-bold text-lg">{cls.classcode}</p>
+                                <p className={`text-xs ${brandColor} font-semibold uppercase tracking-wider`}>{cls.classname}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
-                    <CalendarDays size={14} className="mr-1 inline" /> Add Schedule
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className={`w-full text-sm border-collapse`}>
-                    <thead><tr className={`${subBg}`}>
-                      <th className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>Time</th>
-                      {['Monday','Tuesday','Wednesday','Thursday','Friday'].map(d => (
-                        <th key={d} className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>{d}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {[
-                        {time:'8:00 - 9:30', slots:['CS-101','MAT-101','CS-201','—','CS-301']},
-                        {time:'9:45 - 11:15', slots:['ENG-101','CS-101','—','MAT-101','CS-201']},
-                        {time:'1:00 - 2:30', slots:['—','CS-301','MAT-101','CS-101','—']},
-                        {time:'2:45 - 4:15', slots:['CS-201','—','ENG-101','CS-301','MAT-101']},
-                      ].map((row, i) => (
-                        <tr key={i} className={`${hoverBg} transition-colors`}>
-                          <td className={`px-4 py-3 font-bold text-xs border ${borderSubColor} ${mutedText}`}>{row.time}</td>
-                          {row.slots.map((s, j) => (
-                            <td key={j} className={`px-4 py-3 border ${borderSubColor} text-sm ${s === '—' ? mutedText : 'font-semibold'}`}>{s}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <button onClick={() => setSelectedTimetableClass(null)} className={`px-4 py-2 rounded-lg font-bold text-xs text-white shadow-sm transition mb-4 inline-flex items-center gap-1 w-fit ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
+                          &larr; Back to Classes
+                        </button>
+                        <h3 className="font-bold text-lg">Timetable: {selectedTimetableClass.classcode}</h3>
+                        <p className={`text-xs ${mutedText} mt-1`}>{selectedTimetableClass.classname}</p>
+                      </div>
+                      <button onClick={openAddScheduleModal} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
+                        <CalendarDays size={14} className="mr-1 inline" /> Add Schedule
+                      </button>
+                    </div>
+
+                    {isTimetableLoading ? (
+                       <div className="py-10 text-center text-gray-500 font-bold">Loading schedules...</div>
+                    ) : timetableSchedules.length === 0 ? (
+                       <div className="py-10 text-center text-gray-500 font-bold border-2 border-dashed rounded-xl">No schedules found for this class.</div>
+                    ) : (
+                       <div className="overflow-x-auto">
+                         <table className={`w-full text-sm border-collapse`}>
+                           <thead>
+                             <tr className={`${subBg}`}>
+                               <th className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>Time</th>
+                               {['Monday','Tuesday','Wednesday','Thursday','Friday'].map(d => (
+                                 <th key={d} className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>{d}</th>
+                               ))}
+                             </tr>
+                           </thead>
+                           <tbody>
+                             {(() => {
+                               const getStartHour = (timeStr) => parseInt(timeStr.split(':')[0], 10);
+                               const getDuration = (start, end) => {
+                                  const [sh, sm] = start.split(':').map(Number);
+                                  const [eh, em] = end.split(':').map(Number);
+                                  return Math.max(1, Math.round((eh + em/60) - (sh + sm/60)));
+                               };
+
+                               let minHour = 8;
+                               let maxHour = 17;
+                               if (timetableSchedules.length > 0) {
+                                  const startHours = timetableSchedules.map(s => getStartHour(s.starttime));
+                                  const endHours = timetableSchedules.map(s => getStartHour(s.starttime) + getDuration(s.starttime, s.endtime));
+                                  minHour = Math.min(minHour, ...startHours);
+                                  maxHour = Math.max(maxHour, ...endHours);
+                               }
+
+                               const rows = [];
+                               for (let currentHour = minHour; currentHour < maxHour; currentHour++) {
+                                 const hourStr = currentHour.toString().padStart(2, '0') + ':00';
+                                 
+                                 rows.push(
+                                   <tr key={hourStr} className={`${hoverBg} transition-colors`}>
+                                     <td className={`px-4 py-3 font-bold text-xs border ${borderSubColor} ${mutedText} align-top whitespace-nowrap`}>{hourStr}</td>
+                                     {['Monday','Tuesday','Wednesday','Thursday','Friday'].map(day => {
+                                        
+                                        const schedCoveringHere = timetableSchedules.find(s => {
+                                           if (s.dayofweek !== day) return false;
+                                           const startH = getStartHour(s.starttime);
+                                           const duration = getDuration(s.starttime, s.endtime);
+                                           return currentHour > startH && currentHour < (startH + duration);
+                                        });
+
+                                        if (schedCoveringHere) {
+                                           return null; // Rendered by a previous rowSpan
+                                        }
+
+                                        const schedStartingHere = timetableSchedules.find(s => getStartHour(s.starttime) === currentHour && s.dayofweek === day);
+
+                                        if (schedStartingHere) {
+                                           const duration = getDuration(schedStartingHere.starttime, schedStartingHere.endtime);
+                                           return (
+                                             <td 
+                                               key={day} 
+                                               rowSpan={duration}
+                                               className={`px-4 py-3 border ${borderSubColor} text-sm font-bold cursor-pointer transition ${isDark ? 'text-indigo-200 bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-500/30' : 'text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'} align-top relative`}
+                                               onClick={() => openEditScheduleModal(schedStartingHere)}
+                                             >
+                                               <div className="flex flex-col gap-1">
+                                                 <span className="text-base">{schedStartingHere.subject}</span>
+                                                 <span className={`text-xs opacity-80 ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>{schedStartingHere.starttime.substring(0,5)} - {schedStartingHere.endtime.substring(0,5)}</span>
+                                                 <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-indigo-500/10">
+                                                   <img 
+                                                     src={`https://ui-avatars.com/api/?name=${encodeURIComponent(schedStartingHere.teacher_name || 'Unassigned')}&background=random`} 
+                                                     className="w-4 h-4 rounded-full opacity-80" 
+                                                   />
+                                                   <span className="text-[10px] font-bold opacity-80 truncate">{schedStartingHere.teacher_name || 'Unassigned'}</span>
+                                                 </div>
+                                               </div>
+                                             </td>
+                                           );
+                                        }
+
+                                        return (
+                                          <td 
+                                            key={day} 
+                                            className={`px-4 py-3 border ${borderSubColor} text-sm ${mutedText}`}
+                                          >
+                                            —
+                                          </td>
+                                        );
+                                     })}
+                                   </tr>
+                                 );
+                               }
+                               return rows;
+                             })()}
+                           </tbody>
+                         </table>
+                       </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1287,10 +2184,10 @@ const AdminDashboard = ({ onLogout }) => {
                         </div>
                     ) : attendanceData ? (
                       <div className="overflow-x-auto custom-scrollbar pb-6">
-                        <table className={`w-full text-[12px] text-left whitespace-nowrap border-collapse border ${borderSubColor}`}>
+                        <table className={`w-full text-[12px] text-left whitespace-nowrap border-collapse border ${borderSubColor} ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
                           <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
                             <tr>
-                              <th className={`px-3 py-1.5 sticky left-0 z-10 ${surfaceBg} border ${borderSubColor}`}>Student Name</th>
+                              <th className={`px-3 py-1.5 sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>Student Name</th>
                               {attendanceData.sessions.map(s => (
                                 <th key={s.sessionid} className={`px-2 py-1.5 text-center border ${borderSubColor}`}>{new Date(s.sessiondate).toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}</th>
                               ))}
@@ -1299,7 +2196,7 @@ const AdminDashboard = ({ onLogout }) => {
                           <tbody>
                             {attendanceData.students.map(student => (
                               <tr key={student.studentid} className={`${hoverBg} transition-colors group`}>
-                                <td className={`px-3 py-1.5 font-bold sticky left-0 z-10 ${surfaceBg} border ${borderSubColor}`}>
+                                <td className={`px-3 py-1.5 font-bold sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>
                                   {student.fullname}
                                 </td>
                                 {attendanceData.sessions.map(session => {
@@ -1309,10 +2206,10 @@ const AdminDashboard = ({ onLogout }) => {
                                   const currentStatus = isEdited ? editedAttendance[key].status : (record ? record.status : '-');
                                   
                                   let statusColor = mutedText;
-                                  if (currentStatus === 'Present') statusColor = 'text-green-500';
-                                  else if (currentStatus === 'Absent') statusColor = 'text-red-500';
-                                  else if (currentStatus === 'Late') statusColor = 'text-yellow-500';
-                                  else if (currentStatus === 'Permission') statusColor = 'text-blue-500';
+                                  if (currentStatus === 'Present') statusColor = isDark ? 'text-green-400' : 'text-green-600';
+                                  else if (currentStatus === 'Absent') statusColor = isDark ? 'text-red-400' : 'text-red-600';
+                                  else if (currentStatus === 'Late') statusColor = isDark ? 'text-yellow-400' : 'text-amber-500';
+                                  else if (currentStatus === 'Permission') statusColor = isDark ? 'text-blue-400' : 'text-blue-600';
                                   
                                   const editedBg = isEdited ? (isDark ? 'bg-indigo-500/20' : 'bg-indigo-50') : '';
                                   const displayChar = currentStatus === 'Present' ? '1' : (currentStatus === '-' ? '' : currentStatus.charAt(0));
@@ -1686,6 +2583,104 @@ const AdminDashboard = ({ onLogout }) => {
         </div>
       )}
 
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`${cardStyle} max-w-md w-full flex flex-col p-0`}>
+            <div className={`p-4 border-b ${borderSubColor} flex justify-between items-center`}>
+              <h2 className="text-lg font-bold">{editingSchedule ? 'Edit Schedule' : 'Add Schedule'}</h2>
+              <button onClick={() => setShowScheduleModal(false)} className={`${mutedText} hover:text-red-500 transition`}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>SUBJECT / MODULE</label>
+                <input 
+                  type="text" 
+                  value={scheduleFormData.subject}
+                  onChange={e => setScheduleFormData({...scheduleFormData, subject: e.target.value})}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`}
+                  placeholder="e.g. CS-101"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-xs font-bold mb-2 ${mutedText}`}>START TIME</label>
+                  <input 
+                    type="time" 
+                    value={scheduleFormData.starttime}
+                    onChange={e => setScheduleFormData({...scheduleFormData, starttime: e.target.value})}
+                    className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? '[color-scheme:dark]' : ''}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-2 ${mutedText}`}>END TIME</label>
+                  <input 
+                    type="time" 
+                    value={scheduleFormData.endtime}
+                    onChange={e => setScheduleFormData({...scheduleFormData, endtime: e.target.value})}
+                    className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? '[color-scheme:dark]' : ''}`}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>DAY OF WEEK</label>
+                <select 
+                  value={scheduleFormData.dayofweek}
+                  onChange={e => setScheduleFormData({...scheduleFormData, dayofweek: e.target.value})}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? 'text-white [&>option]:bg-[#1e1e1e]' : ''}`}
+                >
+                  {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>ASSIGNED TEACHER</label>
+                <select 
+                  value={scheduleFormData.teacherid}
+                  onChange={e => setScheduleFormData({...scheduleFormData, teacherid: e.target.value})}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? 'text-white [&>option]:bg-[#1e1e1e]' : ''}`}
+                >
+                  <option value="">-- Unassigned --</option>
+                  {entities.filter(e => e.roleid === 2).map(t => (
+                    <option key={t.eid} value={t.eid}>{t.fullname}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className={`p-4 border-t ${borderSubColor} flex justify-between gap-2`}>
+              {editingSchedule ? (
+                <button 
+                  onClick={() => {
+                    handleDeleteSchedule(editingSchedule.scheduleid);
+                    setShowScheduleModal(false);
+                  }}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isDark ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400' : 'bg-red-50 hover:bg-red-100 text-red-600'}`}
+                >
+                  Delete
+                </button>
+              ) : <div></div>}
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowScheduleModal(false)}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSaveSchedule}
+                  disabled={isSavingSchedule || !scheduleFormData.subject || !scheduleFormData.starttime || !scheduleFormData.endtime}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition text-white ${isDark ? 'bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50' : 'bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50'}`}
+                >
+                  {isSavingSchedule ? 'Saving...' : (editingSchedule ? 'Save Changes' : 'Create Schedule')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showEntityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`${cardStyle} max-w-2xl w-full flex flex-col p-0`}>
@@ -1698,11 +2693,11 @@ const AdminDashboard = ({ onLogout }) => {
             <form onSubmit={handleSaveEntity} className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold mb-1">Full Name</label>
-                <input required type="text" value={newEntity.fullname} onChange={e => setNewEntity({...newEntity, fullname: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input required type="text" value={newEntity.fullname} onChange={e => setNewEntity({...newEntity, fullname: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Role</label>
-                <select value={newEntity.roleid} onChange={e => setNewEntity({...newEntity, roleid: parseInt(e.target.value)})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`}>
+                <select value={newEntity.roleid} onChange={e => setNewEntity({...newEntity, roleid: parseInt(e.target.value)})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}>
                   <option value={1} className={isDark ? 'text-black' : ''}>Admin</option>
                   <option value={2} className={isDark ? 'text-black' : ''}>Teacher</option>
                   <option value={3} className={isDark ? 'text-black' : ''}>Student</option>
@@ -1710,7 +2705,7 @@ const AdminDashboard = ({ onLogout }) => {
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Gender</label>
-                <select value={newEntity.gender} onChange={e => setNewEntity({...newEntity, gender: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`}>
+                <select value={newEntity.gender} onChange={e => setNewEntity({...newEntity, gender: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}>
                   <option value="Male" className={isDark ? 'text-black' : ''}>Male</option>
                   <option value="Female" className={isDark ? 'text-black' : ''}>Female</option>
                   <option value="Other" className={isDark ? 'text-black' : ''}>Other</option>
@@ -1718,26 +2713,26 @@ const AdminDashboard = ({ onLogout }) => {
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Date of Birth</label>
-                <input type="date" value={newEntity.dateofbirth} onChange={e => setNewEntity({...newEntity, dateofbirth: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input type="date" value={newEntity.dateofbirth} onChange={e => setNewEntity({...newEntity, dateofbirth: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Phone Number</label>
-                <input type="text" value={newEntity.phonenumber} onChange={e => setNewEntity({...newEntity, phonenumber: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input type="text" value={newEntity.phonenumber} onChange={e => setNewEntity({...newEntity, phonenumber: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div className="col-span-full border-t border-dashed my-2 pt-2 border-gray-300 dark:border-white/10">
                 <p className="text-xs font-bold text-gray-500 mb-2">USER ACCOUNT (Optional)</p>
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Username</label>
-                <input type="text" value={newEntity.username} onChange={e => setNewEntity({...newEntity, username: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input type="text" value={newEntity.username} onChange={e => setNewEntity({...newEntity, username: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Email</label>
-                <input type="email" value={newEntity.email} onChange={e => setNewEntity({...newEntity, email: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input type="email" value={newEntity.email} onChange={e => setNewEntity({...newEntity, email: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">{editingEntity ? 'New Password (leave blank to keep current)' : 'Password'}</label>
-                <input type={editingEntity ? "text" : "password"} value={newEntity.password} onChange={e => setNewEntity({...newEntity, password: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} bg-transparent`} />
+                <input type={editingEntity ? "text" : "password"} value={newEntity.password} onChange={e => setNewEntity({...newEntity, password: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`} />
               </div>
               <div className="col-span-full flex justify-end gap-2 mt-4">
                 <button type="button" onClick={() => setShowEntityModal(false)} className={`px-4 py-2 rounded-lg font-bold text-sm ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>Cancel</button>
