@@ -4,7 +4,7 @@ import {
   Cpu, FileText, Terminal, Settings, LogOut, 
   Users, CheckCircle, XCircle, BarChart3, Sun, Moon,
   CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart as PieChartIcon, MoreHorizontal,
-  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft
+  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ShieldCheck, CheckCircle2, Shield
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -38,6 +38,20 @@ const AdminDashboard = ({ onLogout }) => {
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem('adminTheme') === 'dark';
   });
+
+  const [adminSettings, setAdminSettings] = useState({
+    checkInReminders: true,
+    missedAttendanceAlerts: true,
+    excuseUpdates: false,
+    weeklySummary: false,
+    loginAlerts: true,
+    reminderTime: '15 minutes before',
+    language: 'English'
+  });
+  
+  const updateSetting = (key, value) => {
+    setAdminSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   useEffect(() => {
     localStorage.setItem('adminTheme', isDark ? 'dark' : 'light');
@@ -838,6 +852,24 @@ const AdminDashboard = ({ onLogout }) => {
     logs: 'System Logs',
     settings: 'System Settings',
     attendance: 'Attendance Tracking'
+  };
+
+  const Toggle = ({ setting, label }) => {
+    const checked = adminSettings[setting];
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => updateSetting(setting, !checked)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-[#60a5fa]' : 'bg-gray-200 dark:bg-white/15'}`}
+      >
+        <span
+          className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-1 ring-slate-950/5 transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'} mt-0.5`}
+        />
+      </button>
+    );
   };
 
   return (
@@ -2587,39 +2619,110 @@ const AdminDashboard = ({ onLogout }) => {
             )}
 
             {activeView === 'settings' && (
-              <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className={`${cardStyle} p-8`}>
-                  <h3 className={`font-bold mb-6 text-lg border-b ${borderColor} pb-4`}>System Preferences</h3>
-                  <div className="space-y-8 max-w-lg">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold">Theme Preference</p>
-                        <p className={`text-xs ${mutedText} mt-1`}>Select your default dashboard theme.</p>
-                      </div>
-                      <div className={`flex rounded-lg p-1 border transition-colors ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-100 border-gray-200'}`}>
-                        <button 
-                          onClick={() => setIsDark(false)} 
-                          className={`px-4 py-1.5 text-sm rounded-md font-bold transition-all flex items-center gap-2 ${!isDark ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400 hover:text-white'}`}
-                        >
-                          <Sun size={14} /> Light
-                        </button>
-                        <button 
-                          onClick={() => setIsDark(true)} 
-                          className={`px-4 py-1.5 text-sm rounded-md font-bold transition-all flex items-center gap-2 ${isDark ? 'bg-black shadow-[0_0_10px_rgba(255,255,255,0.1)] text-cyan-400 border border-white/10' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                          <Moon size={14} /> Dark
-                        </button>
-                      </div>
+              <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+                <div>
+                  <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400">Preferences</p>
+                  <h2 className={`text-2xl font-black tracking-tight ${textColor}`}>Settings</h2>
+                  <p className={`mt-1 text-sm ${mutedText}`}>Manage notifications, appearance, attendance preferences, and account security.</p>
+                </div>
+
+                <div className="grid gap-5 xl:grid-cols-[1.35fr_0.85fr]">
+                  <section className={`${cardStyle} overflow-hidden !p-0`}>
+                    <div className={`flex items-center gap-3 border-b ${borderColor} p-5`}>
+                      <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-sky-400/10 text-sky-300' : 'bg-sky-50 text-[#3b82f6]'}`}><Bell size={19} /></span>
+                      <div><h3 className="font-extrabold">Attendance notifications</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Choose which updates you want to receive.</p></div>
                     </div>
-                    <div className={`pt-8 border-t ${borderColor}`}>
-                       <p className="font-semibold text-red-500">Session Management</p>
-                       <p className={`text-xs ${mutedText} mt-1 mb-4`}>Securely end your current administrative session.</p>
-                       <button onClick={onLogout} className="px-6 py-2.5 rounded-lg font-bold text-sm transition-colors bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center gap-2">
-                         <LogOut size={16} /> Log Out
-                       </button>
+                    <div className={`divide-y ${borderColor} px-5`}>
+                      {[
+                        ['checkInReminders', 'Class check-in reminders', 'Notify me before fingerprint check-in opens.'],
+                        ['missedAttendanceAlerts', 'Missed attendance alerts', 'Let me know when a class is marked absent or unverified.'],
+                        ['excuseUpdates', 'Excuse request updates', 'Receive a notification when a teacher reviews my request.'],
+                        ['weeklySummary', 'Weekly attendance summary', 'Get a short attendance recap at the end of each week.'],
+                      ].map(([setting, title, copy]) => (
+                        <div key={setting} className="flex items-center justify-between gap-5 py-4">
+                          <div><p className="text-sm font-bold">{title}</p><p className={`mt-1 text-xs leading-5 ${mutedText}`}>{copy}</p></div>
+                          <Toggle setting={setting} label={title} />
+                        </div>
+                      ))}
                     </div>
+                  </section>
+
+                  <div className="space-y-5">
+                    <section className={`${cardStyle} p-5`}>
+                      <div className="flex items-center gap-3">
+                        <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-emerald-400/10 text-emerald-300' : 'bg-emerald-50 text-emerald-600'}`}><Fingerprint size={19} /></span>
+                        <div><h3 className="font-extrabold">Fingerprint status</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Your attendance identity</p></div>
+                      </div>
+                      <div className={`mt-4 flex items-center justify-between rounded-xl p-3 ${isDark ? 'bg-emerald-400/[0.08]' : 'bg-emerald-50/70'}`}>
+                        <span className={`flex items-center gap-2 text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}><CheckCircle2 size={15} />Enrolled and ready</span>
+                        <span className={`text-[10px] ${mutedText}`}>Verified</span>
+                      </div>
+                      <button className={`mt-3 w-full rounded-xl border py-2.5 text-xs font-bold transition ${isDark ? 'border-white/10 hover:border-[#60a5fa] hover:text-[#60a5fa]' : 'border-slate-200 hover:border-[#60a5fa] hover:text-[#2563eb]'}`}>View student profile</button>
+                    </section>
+
+                    <section className={`${cardStyle} p-5`}>
+                      <div className="flex items-center gap-3">
+                        <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`}><ShieldCheck size={19} /></span>
+                        <div className="flex-1"><h3 className="font-extrabold">Login alerts</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Notify me about new device sign-ins.</p></div>
+                        <Toggle setting="loginAlerts" label="Login alerts" />
+                      </div>
+                    </section>
                   </div>
                 </div>
+
+                <section className={`${cardStyle} overflow-hidden !p-0`}>
+                  <div className={`border-b ${borderColor} p-5 flex items-center gap-3`}>
+                    <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-violet-400/10 text-violet-300' : 'bg-violet-50 text-violet-600'}`}><Shield size={19} /></span>
+                    <div><h3 className="font-extrabold">Account security</h3><p className={`mt-1 text-xs ${mutedText}`}>Protect your dashboard and sign-in details.</p></div>
+                  </div>
+                  <div className={`divide-y ${borderColor} px-5`}>
+                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <KeyRound size={16} className={isDark ? 'text-violet-300' : 'text-violet-500'} />
+                        <div><p className="text-sm font-bold">Change password</p><p className={`mt-1 text-xs ${mutedText}`}>Use at least 8 characters and avoid reused passwords.</p></div>
+                      </div>
+                      <button className={`rounded-xl border px-4 py-2 text-xs font-bold transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'}`}>Change password</button>
+                    </div>
+                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <svg className={`w-4 h-4 ${isDark ? 'text-violet-300' : 'text-violet-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <div><p className="text-sm font-bold flex items-center gap-2">Two-step verification <span className={`text-[9px] px-1.5 py-0.5 rounded ${isDark ? 'bg-white/10 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>Off</span></p><p className={`mt-1 text-xs ${mutedText}`}>Confirm sign-ins with a six-digit code sent to your email.</p></div>
+                      </div>
+                      <button className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-violet-700">Set up</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={`${cardStyle} overflow-hidden !p-0`}>
+                  <div className={`border-b ${borderColor} p-5`}><h3 className="font-extrabold">My preferences</h3><p className={`mt-1 text-xs ${mutedText}`}>Personalize how the portal works for you.</p></div>
+                  <div className={`divide-y ${borderColor} px-5`}>
+                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="text-sm font-bold">Appearance</p><p className={`mt-1 text-xs ${mutedText}`}>Choose a bright campus-inspired theme.</p></div>
+                      <div className="flex gap-2">
+                        {[{ dark: false, label: 'Daylight', icon: Sun }, { dark: true, label: 'Soft sky', icon: Moon }].map(({ dark, label, icon }) => (
+                          <button key={label} onClick={() => setIsDark(dark)} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${isDark === dark ? 'border-[#60a5fa] bg-sky-50 text-sky-800 dark:bg-sky-400/10 dark:text-sky-300' : `border-slate-200 text-slate-600 hover:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-400' : ''}`}`}>{React.createElement(icon, { size: 15 })}{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="text-sm font-bold">Class reminder time</p><p className={`mt-1 text-xs ${mutedText}`}>When should the portal remind you about your next class?</p></div>
+                      <select value={adminSettings.reminderTime} onChange={(event) => updateSetting('reminderTime', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-slate-200 text-slate-700'}`}>
+                        {['5 minutes before', '15 minutes before', '30 minutes before', '1 hour before'].map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="text-sm font-bold">Language</p><p className={`mt-1 text-xs ${mutedText}`}>Choose your preferred dashboard language.</p></div>
+                      <select value={adminSettings.language} onChange={(event) => updateSetting('language', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-slate-200 text-slate-700'}`}>
+                        <option>English</option><option>Khmer</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={`${cardStyle} flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between`}>
+                  <div><h3 className="font-extrabold">Account session</h3><p className={`mt-1 text-xs ${mutedText}`}>You are signed in on this device. Sign out safely when you are finished.</p></div>
+                  <button onClick={onLogout} className={`flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${isDark ? 'bg-rose-400/10 text-rose-300 hover:bg-rose-400/20' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}><LogOut size={16} />Sign out</button>
+                </section>
               </div>
             )}
 
