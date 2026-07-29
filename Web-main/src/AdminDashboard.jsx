@@ -81,6 +81,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [biometricStudents, setBiometricStudents] = useState([]);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const [hardwareDevices, setHardwareDevices] = useState([]);
 
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -163,11 +164,24 @@ const AdminDashboard = ({ onLogout }) => {
     setIsBiometricLoading(false);
   };
 
+  const fetchHardwareDevices = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/api/devices');
+      if (res.ok) {
+        const data = await res.json();
+        setHardwareDevices(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (activeView === 'database') fetchUsers();
     else if (activeView === 'attendance') { fetchTrackingClasses(); setTrackingLevel('classes'); }
     else if (activeView === 'entities') fetchEntities();
     else if (activeView === 'biometric') fetchBiometricStudents();
+    else if (activeView === 'hardware') fetchHardwareDevices();
   }, [activeView]);
 
   const handleAddUserSubmit = async (e) => {
@@ -2448,21 +2462,27 @@ const AdminDashboard = ({ onLogout }) => {
                   <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><i className="fas fa-plus mr-1"></i> Register Device</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className={`border rounded-xl p-5 flex flex-col justify-between ${borderSubColor} ${subBg}`}>
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <p className="font-bold text-lg">BIO-01</p>
-                        <p className={`text-xs ${mutedText} mt-0.5`}><i className="fas fa-map-marker-alt mr-1"></i> Main Entrance</p>
+                  {hardwareDevices.length === 0 ? (
+                    <div className={`col-span-full py-8 text-center ${mutedText}`}>No registered devices found.</div>
+                  ) : (
+                    hardwareDevices.map((device) => (
+                      <div key={device.deviceid} className={`border rounded-xl p-5 flex flex-col justify-between ${borderSubColor} ${subBg}`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="font-bold text-lg">{device.devicename || `Device #${device.deviceid}`}</p>
+                            <p className={`text-xs ${mutedText} mt-0.5`}><i className="fas fa-map-marker-alt mr-1"></i> {device.location || 'Main Entrance'}</p>
+                          </div>
+                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded flex items-center gap-1.5 ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> ONLINE
+                          </span>
+                        </div>
+                        <div className={`pt-4 border-t ${borderSubColor} flex justify-between text-xs`}>
+                          <span className={mutedText}>Last Sync: {device.lastseen ? new Date(device.lastseen).toLocaleTimeString() : 'Just now'}</span>
+                          <button className={`font-bold hover:underline ${brandColor}`}>Configure</button>
+                        </div>
                       </div>
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded flex items-center gap-1.5 ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> ONLINE
-                      </span>
-                    </div>
-                    <div className={`pt-4 border-t ${borderSubColor} flex justify-between text-xs`}>
-                      <span className={mutedText}>Last Sync: Just now</span>
-                      <button className={`font-bold hover:underline ${brandColor}`}>Configure</button>
-                    </div>
-                  </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
