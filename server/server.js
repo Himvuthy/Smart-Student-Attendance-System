@@ -148,7 +148,7 @@ app.get('/api/entities', async (req, res) => {
   try {
     const query = `
       SELECT e.eid, u.userid, u.username, r.rolename, e.fullname, e.gender, e.dateofbirth, 
-e.phonenumber, u.email, e.roleid, s.studentid, l.lecturerid
+e.phonenumber, u.email, e.roleid, s.studentid, l.lecturerid, e.createdat, e.lastedit
       FROM entity e
       LEFT JOIN useraccount u ON e.eid = u.eid
       LEFT JOIN role r ON e.roleid = r.roleid
@@ -265,12 +265,160 @@ app.get('/api/classes/:classid/schedules', async (req, res) => {
   try {
     const { classid } = req.params;
     const result = await pool.query(
-      'SELECT scheduleid, subject, starttime, endtime, dayofweek FROM schedule WHERE classid = $1',
+      `SELECT s.scheduleid, s.subject, s.starttime, s.endtime, s.dayofweek, 
+              l.eid as teacherid, e.fullname as teacher_name 
+       FROM schedule s 
+       LEFT JOIN assignment a ON s.scheduleid = a.scheduleid 
+       LEFT JOIN lecturer l ON a.lecturerid = l.lecturerid
+       LEFT JOIN entity e ON l.eid = e.eid
+       WHERE s.classid = $1`,
       [classid]
     );
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching schedules:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create a new schedule for a class
+app.post('/api/classes/:classid/schedules', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { classid } = req.params;
+    const { subject, starttime, endtime, dayofweek, teacherid } = req.body;
+    
+    // 1. Create schedule
+    const schedResult = await client.query(
+      'INSERT INTO schedule (classid, subject, starttime, endtime, dayofweek) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [classid, subject, starttime, endtime, dayofweek]
+    );
+    const newSchedule = schedResult.rows[0];
+
+    // 2. Handle assignment if teacherid provided
+    if (teacherid) {
+       // Find or create lecturer
+       let lecResult = await client.query(
+         'SELECT lecturerid FROM lecturer WHERE eid = $1 AND classid = $2 AND subject = $3',
+         [teacherid, classid, subject]
+       );
+       let lecturerid;
+       if (lecResult.rows.length > 0) {
+          lecturerid = lecResult.rows[0].lecturerid;
+       } else {
+          lecResult = await client.query(
+            'INSERT INTO lecturer (eid, classid, subject) VALUES ($1, $2, $3) RETURNING lecturerid',
+            [teacherid, classid, subject]
+          );
+          lecturerid = lecResult.rows[0].lecturerid;
+       }
+       // Assign to schedule
+       await client.query(
+         'INSERT INTO assignment (lecturerid, scheduleid) VALUES ($1, $2)',
+         [lecturerid, newSchedule.scheduleid]
+       );
+    }
+    await client.query('COMMIT');
+
+    const inserted = await pool.query(
+      `SELECT s.scheduleid, s.subject, s.starttime, s.endtime, s.dayofweek, 
+              l.eid as teacherid, e.fullname as teacher_name 
+       FROM schedule s 
+       LEFT JOIN assignment a ON s.scheduleid = a.scheduleid 
+       LEFT JOIN lecturer l ON a.lecturerid = l.lecturerid
+       LEFT JOIN entity e ON l.eid = e.eid
+       WHERE s.scheduleid = $1`,
+      [newSchedule.scheduleid]
+    );
+    res.status(201).json(inserted.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating schedule:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Update an existing schedule
+app.put('/api/schedules/:scheduleid', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { scheduleid } = req.params;
+    const { subject, starttime, endtime, dayofweek, teacherid } = req.body;
+    
+    // Get classid for lecturer check
+    const classRes = await client.query('SELECT classid FROM schedule WHERE scheduleid = $1', [scheduleid]);
+    if (classRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    const classid = classRes.rows[0].classid;
+
+    const result = await client.query(
+      'UPDATE schedule SET subject = $1, starttime = $2, endtime = $3, dayofweek = $4 WHERE scheduleid = $5 RETURNING *',
+      [subject, starttime, endtime, dayofweek, scheduleid]
+    );
+    
+    // Delete existing assignment
+    await client.query('DELETE FROM assignment WHERE scheduleid = $1', [scheduleid]);
+
+    // Add new assignment if teacherid provided
+    if (teacherid) {
+       let lecResult = await client.query(
+         'SELECT lecturerid FROM lecturer WHERE eid = $1 AND classid = $2 AND subject = $3',
+         [teacherid, classid, subject]
+       );
+       let lecturerid;
+       if (lecResult.rows.length > 0) {
+          lecturerid = lecResult.rows[0].lecturerid;
+       } else {
+          lecResult = await client.query(
+            'INSERT INTO lecturer (eid, classid, subject) VALUES ($1, $2, $3) RETURNING lecturerid',
+            [teacherid, classid, subject]
+          );
+          lecturerid = lecResult.rows[0].lecturerid;
+       }
+       await client.query(
+         'INSERT INTO assignment (lecturerid, scheduleid) VALUES ($1, $2)',
+         [lecturerid, scheduleid]
+       );
+    }
+    await client.query('COMMIT');
+
+    const updated = await pool.query(
+      `SELECT s.scheduleid, s.subject, s.starttime, s.endtime, s.dayofweek, 
+              l.eid as teacherid, e.fullname as teacher_name 
+       FROM schedule s 
+       LEFT JOIN assignment a ON s.scheduleid = a.scheduleid 
+       LEFT JOIN lecturer l ON a.lecturerid = l.lecturerid
+       LEFT JOIN entity e ON l.eid = e.eid
+       WHERE s.scheduleid = $1`,
+      [scheduleid]
+    );
+    res.json(updated.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating schedule:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete a schedule
+app.delete('/api/schedules/:scheduleid', async (req, res) => {
+  try {
+    const { scheduleid } = req.params;
+    const result = await pool.query('DELETE FROM schedule WHERE scheduleid = $1 RETURNING *', [scheduleid]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    res.json({ message: 'Schedule deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting schedule:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -482,6 +630,419 @@ app.get('/api/attendance-tracking/sessions/:sessionid/log', async (req, res) => 
     res.json(logRes.rows);
   } catch (error) {
     console.error('Error fetching session log:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// EXCUSE REQUEST TABLE (auto-create on startup)
+// ─────────────────────────────────────────────
+pool.query(`
+  CREATE TABLE IF NOT EXISTS excuserequest (
+    requestid SERIAL PRIMARY KEY,
+    studentid INTEGER REFERENCES student(studentid) ON DELETE CASCADE,
+    scheduleid INTEGER REFERENCES schedule(scheduleid) ON DELETE SET NULL,
+    requestdate DATE NOT NULL,
+    reason VARCHAR(255),
+    details TEXT,
+    status VARCHAR(20) DEFAULT 'Pending',
+    reviewedat TIMESTAMP,
+    reviewer_eid INTEGER,
+    createdat TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => console.log('excuserequest table ready')).catch(e => console.error('excuserequest table error:', e.message));
+
+// ─────────────────────────────────────────────
+// EXCUSE REQUEST ENDPOINTS
+// ─────────────────────────────────────────────
+app.get('/api/excuse-requests', async (req, res) => {
+  try {
+    const { studentUserId } = req.query;
+    let query = `
+      SELECT er.requestid as id, er.requestdate, er.reason, er.details, er.status, er.createdat,
+             er.scheduleid, s.subject, s.dayofweek,
+             st.studentid, e.fullname as student_name, e.eid as student_eid,
+             u.userid as studentUserId
+      FROM excuserequest er
+      JOIN student st ON er.studentid = st.studentid
+      JOIN entity e ON st.eid = e.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
+      LEFT JOIN schedule s ON er.scheduleid = s.scheduleid
+    `;
+    const params = [];
+    if (studentUserId) {
+      query += ' WHERE u.userid = $1';
+      params.push(studentUserId);
+    }
+    query += ' ORDER BY er.createdat DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching excuse requests:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/excuse-requests', async (req, res) => {
+  try {
+    const { studentUserId, scheduleid, requestdate, reason, details } = req.body;
+    // Resolve studentid from userid
+    const stRes = await pool.query(
+      'SELECT st.studentid FROM student st JOIN entity e ON st.eid = e.eid JOIN useraccount u ON e.eid = u.eid WHERE u.userid = $1',
+      [studentUserId]
+    );
+    if (stRes.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+    const studentid = stRes.rows[0].studentid;
+
+    const result = await pool.query(
+      'INSERT INTO excuserequest (studentid, scheduleid, requestdate, reason, details) VALUES ($1, $2, $3, $4, $5) RETURNING requestid',
+      [studentid, scheduleid || null, requestdate, reason, details || null]
+    );
+    const row = await pool.query(`
+      SELECT er.requestid as id, er.requestdate, er.reason, er.details, er.status, er.createdat,
+             s.subject, s.dayofweek, e.fullname as student_name, u.userid as studentUserId
+      FROM excuserequest er
+      JOIN student st ON er.studentid = st.studentid
+      JOIN entity e ON st.eid = e.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
+      LEFT JOIN schedule s ON er.scheduleid = s.scheduleid
+      WHERE er.requestid = $1`, [result.rows[0].requestid]);
+    res.status(201).json(row.rows[0]);
+  } catch (error) {
+    console.error('Error creating excuse request:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/excuse-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reviewerUserId } = req.body;
+    let reviewer_eid = null;
+    if (reviewerUserId) {
+      const rev = await pool.query('SELECT eid FROM useraccount WHERE userid = $1', [reviewerUserId]);
+      if (rev.rows.length > 0) reviewer_eid = rev.rows[0].eid;
+    }
+    await pool.query(
+      'UPDATE excuserequest SET status = $1, reviewedat = NOW(), reviewer_eid = $2 WHERE requestid = $3',
+      [status, reviewer_eid, id]
+    );
+    const row = await pool.query(`
+      SELECT er.requestid as id, er.requestdate, er.reason, er.details, er.status, er.createdat,
+             s.subject, s.dayofweek, e.fullname as student_name, u.userid as studentUserId
+      FROM excuserequest er
+      JOIN student st ON er.studentid = st.studentid
+      JOIN entity e ON st.eid = e.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
+      LEFT JOIN schedule s ON er.scheduleid = s.scheduleid
+      WHERE er.requestid = $1`, [id]);
+    res.json(row.rows[0]);
+  } catch (error) {
+    console.error('Error reviewing excuse request:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// STUDENT ENDPOINTS
+// ─────────────────────────────────────────────
+
+// Student profile
+app.get('/api/student/:eid/profile', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT e.eid, e.fullname, e.gender, e.dateofbirth, e.phonenumber, e.profilepicture,
+             st.studentid, u.email, u.username, u.userid,
+             c.classname, c.classcode, c.academicyear, c.semester,
+             b.biometricid
+      FROM entity e
+      JOIN student st ON e.eid = st.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
+      LEFT JOIN enrollment en ON st.studentid = en.studentid
+      LEFT JOIN class c ON en.classid = c.classid
+      LEFT JOIN biometric b ON st.studentid = b.studentid
+      WHERE e.eid = $1
+      LIMIT 1
+    `, [eid]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching student profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Student weekly schedule
+app.get('/api/student/:eid/schedule', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT s.scheduleid, s.subject, s.starttime, s.endtime, s.dayofweek,
+             c.classname, c.classcode,
+             e_lec.fullname as teacher_name
+      FROM student st
+      JOIN enrollment en ON st.studentid = en.studentid
+      JOIN class c ON en.classid = c.classid
+      JOIN schedule s ON s.classid = c.classid
+      LEFT JOIN assignment a ON a.scheduleid = s.scheduleid
+      LEFT JOIN lecturer l ON a.lecturerid = l.lecturerid
+      LEFT JOIN entity e_lec ON l.eid = e_lec.eid
+      WHERE st.eid = $1
+      ORDER BY CASE s.dayofweek
+        WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3
+        WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6 ELSE 7 END,
+        s.starttime
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching student schedule:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Student attendance history
+app.get('/api/student/:eid/attendance', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT a.attendanceid, a.status, a.attendedat, a.minutelate,
+             sess.sessiondate,
+             s.subject, s.starttime, s.endtime, s.scheduleid,
+             c.classcode, c.classname
+      FROM attendance a
+      JOIN session sess ON a.sessionid = sess.sessionid
+      JOIN schedule s ON sess.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      JOIN student st ON a.studentid = st.studentid
+      WHERE st.eid = $1
+      ORDER BY sess.sessiondate DESC, s.starttime
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching student attendance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Student per-subject attendance stats
+app.get('/api/student/:eid/attendance/stats', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT s.scheduleid, s.subject, c.classcode, c.classname,
+             COUNT(*) as sessions,
+             COUNT(*) FILTER (WHERE a.status = 'Present') as present,
+             COUNT(*) FILTER (WHERE a.status = 'Late') as late,
+             COUNT(*) FILTER (WHERE a.status = 'Absent') as absent,
+             ROUND(
+               COUNT(*) FILTER (WHERE a.status IN ('Present','Late'))::decimal / NULLIF(COUNT(*), 0) * 100, 1
+             ) as rate
+      FROM attendance a
+      JOIN session sess ON a.sessionid = sess.sessionid
+      JOIN schedule s ON sess.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      JOIN student st ON a.studentid = st.studentid
+      WHERE st.eid = $1
+      GROUP BY s.scheduleid, s.subject, c.classcode, c.classname
+      ORDER BY s.subject
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching student stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// TEACHER ENDPOINTS
+// ─────────────────────────────────────────────
+
+// Teacher profile
+app.get('/api/teacher/:eid/profile', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT e.eid, e.fullname, e.gender, e.dateofbirth, e.phonenumber, e.profilepicture,
+             u.email, u.username, u.userid,
+             l.lecturerid,
+             COUNT(DISTINCT en.studentid) as total_students,
+             COUNT(DISTINCT a.scheduleid) as total_classes
+      FROM entity e
+      JOIN lecturer l ON e.eid = l.eid
+      LEFT JOIN useraccount u ON e.eid = u.eid
+      LEFT JOIN assignment a ON l.lecturerid = a.lecturerid
+      LEFT JOIN schedule s ON a.scheduleid = s.scheduleid
+      LEFT JOIN enrollment en ON s.classid = en.classid
+      WHERE e.eid = $1
+      GROUP BY e.eid, e.fullname, e.gender, e.dateofbirth, e.phonenumber, e.profilepicture,
+               u.email, u.username, u.userid, l.lecturerid
+      LIMIT 1
+    `, [eid]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching teacher profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Teacher's assigned classes
+app.get('/api/teacher/:eid/classes', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT DISTINCT c.classid, c.classname, c.classcode,
+        (SELECT COUNT(*) FROM enrollment en WHERE en.classid = c.classid) as student_count,
+        ROUND(
+          (SELECT COUNT(*) FILTER (WHERE a.status IN ('Present','Late'))::decimal
+           FROM attendance a
+           JOIN session sess ON a.sessionid = sess.sessionid
+           JOIN schedule sch2 ON sess.scheduleid = sch2.scheduleid
+           WHERE sch2.classid = c.classid) /
+          NULLIF((SELECT COUNT(*) FROM attendance a2
+           JOIN session sess2 ON a2.sessionid = sess2.sessionid
+           JOIN schedule sch3 ON sess2.scheduleid = sch3.scheduleid
+           WHERE sch3.classid = c.classid), 0) * 100, 1
+        ) as attendance_rate,
+        string_agg(DISTINCT s.dayofweek, ', ') as days,
+        MIN(s.starttime::text) as starttime,
+        MAX(s.endtime::text) as endtime
+      FROM lecturer l
+      JOIN assignment a ON l.lecturerid = a.lecturerid
+      JOIN schedule s ON a.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      WHERE l.eid = $1
+      GROUP BY c.classid, c.classname, c.classcode
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching teacher classes:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Teacher's teaching schedule
+app.get('/api/teacher/:eid/schedule', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT s.scheduleid, s.subject, s.starttime, s.endtime, s.dayofweek,
+             c.classname, c.classcode, c.classid,
+             e.fullname as teacher_name
+      FROM lecturer l
+      JOIN assignment a ON l.lecturerid = a.lecturerid
+      JOIN schedule s ON a.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      JOIN entity e ON l.eid = e.eid
+      WHERE l.eid = $1
+      ORDER BY CASE s.dayofweek
+        WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3
+        WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6 ELSE 7 END,
+        s.starttime
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching teacher schedule:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Class roster with today's attendance
+app.get('/api/classes/:classid/roster', async (req, res) => {
+  try {
+    const { classid } = req.params;
+    const result = await pool.query(`
+      SELECT st.studentid, e.fullname, e.profilepicture,
+             COALESCE(att.status, '-') as status,
+             att.attendedat,
+             att.minutelate
+      FROM enrollment en
+      JOIN student st ON en.studentid = st.studentid
+      JOIN entity e ON st.eid = e.eid
+      LEFT JOIN (
+        SELECT a.studentid, a.status, a.attendedat, a.minutelate
+        FROM attendance a
+        JOIN session sess ON a.sessionid = sess.sessionid
+        JOIN schedule s ON sess.scheduleid = s.scheduleid
+        WHERE s.classid = $1
+          AND sess.sessiondate = CURRENT_DATE
+      ) att ON att.studentid = st.studentid
+      WHERE en.classid = $1
+      ORDER BY e.fullname ASC
+    `, [classid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching class roster:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// At-risk students for teacher
+app.get('/api/teacher/:eid/at-risk', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT st.studentid, e.fullname,
+             s.subject, c.classcode, c.classname,
+             COUNT(*) as total,
+             COUNT(*) FILTER (WHERE a.status = 'Present') as present,
+             COUNT(*) FILTER (WHERE a.status = 'Late') as late,
+             COUNT(*) FILTER (WHERE a.status = 'Absent') as absent,
+             ROUND(
+               COUNT(*) FILTER (WHERE a.status IN ('Present','Late'))::decimal / NULLIF(COUNT(*), 0) * 100, 1
+             ) as rate
+      FROM lecturer l
+      JOIN assignment a_assign ON l.lecturerid = a_assign.lecturerid
+      JOIN schedule s ON a_assign.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      JOIN session sess ON sess.scheduleid = s.scheduleid
+      JOIN attendance a ON a.sessionid = sess.sessionid
+      JOIN student st ON a.studentid = st.studentid
+      JOIN entity e ON st.eid = e.eid
+      WHERE l.eid = $1
+      GROUP BY st.studentid, e.fullname, s.subject, c.classcode, c.classname
+      HAVING ROUND(
+               COUNT(*) FILTER (WHERE a.status IN ('Present','Late'))::decimal / NULLIF(COUNT(*), 0) * 100, 1
+             ) < 90
+      ORDER BY rate ASC
+      LIMIT 20
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching at-risk students:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Teacher reports: per-schedule attendance stats
+app.get('/api/teacher/:eid/reports', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    const result = await pool.query(`
+      SELECT s.scheduleid, s.subject, s.dayofweek, c.classcode, c.classname,
+        COUNT(DISTINCT en.studentid) as enrolled,
+        COUNT(DISTINCT sess.sessionid) as sessions,
+        COUNT(*) FILTER (WHERE a.status = 'Present') as present,
+        COUNT(*) FILTER (WHERE a.status = 'Late') as late,
+        COUNT(*) FILTER (WHERE a.status = 'Absent') as absent,
+        ROUND(
+          COUNT(*) FILTER (WHERE a.status IN ('Present','Late'))::decimal / NULLIF(COUNT(*), 0) * 100, 1
+        ) as rate
+      FROM lecturer l
+      JOIN assignment a_assign ON l.lecturerid = a_assign.lecturerid
+      JOIN schedule s ON a_assign.scheduleid = s.scheduleid
+      JOIN class c ON s.classid = c.classid
+      LEFT JOIN enrollment en ON en.classid = c.classid
+      LEFT JOIN session sess ON sess.scheduleid = s.scheduleid
+      LEFT JOIN attendance a ON a.sessionid = sess.sessionid
+      WHERE l.eid = $1
+      GROUP BY s.scheduleid, s.subject, s.dayofweek, c.classcode, c.classname
+      ORDER BY s.subject
+    `, [eid]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching teacher reports:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

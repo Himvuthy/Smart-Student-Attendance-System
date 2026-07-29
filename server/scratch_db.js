@@ -1,15 +1,25 @@
-const { Client } = require('pg');
-const client = new Client({ connectionString: 'postgresql://postgres.dusubxmflzjyshtfoxmd:SmartATTSystem123@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres' });
+require('dotenv').config();
+const { Pool } = require('pg');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
-async function dump() {
-  await client.connect();
-  const tables = ['class', 'enrollment', 'attendance', 'student', 'session', 'schedule', 'lecturer', 'entity'];
-  for (const t of tables) {
-    const res = await client.query('SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1', [t]);
-    console.log(`--- ${t} ---`);
-    console.log(res.rows.map(r => `${r.column_name} (${r.data_type})`).join(', '));
-  }
-  await client.end();
-}
+const query = `
+  SELECT e.eid, e.fullname, u.email, e.phonenumber, s.studentid, b.biometricid
+  FROM entity e
+  JOIN student s ON e.eid = s.eid
+  LEFT JOIN useraccount u ON e.eid = u.eid
+  LEFT JOIN biometric b ON s.studentid = b.studentid
+  ORDER BY s.studentid ASC
+`;
 
-dump().catch(console.error);
+pool.query(query)
+  .then(res => {
+    console.log(res.rows);
+    pool.end();
+  })
+  .catch(err => {
+    console.error('ERROR:', err);
+    pool.end();
+  });
