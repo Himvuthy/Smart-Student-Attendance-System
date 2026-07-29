@@ -112,6 +112,7 @@ const StudentDashboard = ({ onLogout }) => {
             id: prof.studentid ? `STU-${String(prof.studentid).padStart(5, '0')}` : '...',
             email: prof.email,
             username: prof.username,
+            fingerprintEnrolled: !!prof.biometricid,
             raw: prof
           });
         }
@@ -1331,7 +1332,7 @@ const StudentDashboard = ({ onLogout }) => {
             </div>
           </nav>
           <div className="border-t border-slate-200 p-4 dark:border-white/10">
-            <div title="Fingerprint enrolled" className={`mb-2 flex items-center gap-2 rounded-xl bg-emerald-50 p-2.5 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300 ${sidebarCollapsed ? 'lg:justify-center' : ''}`}><span className="relative"><Fingerprint size={18} /><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-50 dark:ring-[#17281f]" /></span><div className={sidebarCollapsed ? 'lg:hidden' : ''}><p className="text-[11px] font-extrabold">Fingerprint ready</p><p className="text-[9px] opacity-75">Enrolled and active</p></div></div>
+            <div title={studentProfile.fingerprintEnrolled ? "Fingerprint enrolled" : "Fingerprint pending"} className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${studentProfile.fingerprintEnrolled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' : 'bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400'} ${sidebarCollapsed ? 'lg:justify-center' : ''}`}><span className="relative"><Fingerprint size={18} />{studentProfile.fingerprintEnrolled && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-50 dark:ring-[#17281f]" />}</span><div className={sidebarCollapsed ? 'lg:hidden' : ''}><p className="text-[11px] font-extrabold">{studentProfile.fingerprintEnrolled ? 'Fingerprint ready' : 'Action required'}</p><p className="text-[9px] opacity-75">{studentProfile.fingerprintEnrolled ? 'Enrolled and active' : 'Please enroll fingerprint'}</p></div></div>
             <button title={sidebarCollapsed ? 'Settings' : undefined} onClick={() => { setActiveView('settings'); setSidebarOpen(false); }} className={`group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-200 ${sidebarCollapsed ? 'lg:justify-center' : ''} ${activeView === 'settings' ? 'bg-white text-slate-950 shadow-[0_2px_10px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-white dark:ring-white/10' : 'text-slate-500 hover:translate-x-1 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'}`}>
               <span className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 ${activeView === 'settings' ? 'bg-[#60a5fa] text-white' : 'group-hover:rotate-45 group-hover:scale-105 group-hover:bg-[#60a5fa] group-hover:text-white'}`}><Settings size={17} /></span>
               <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Settings</span>
