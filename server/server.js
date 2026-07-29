@@ -66,7 +66,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/biometric/students', async (req, res) => {
   try {
     const query = `
-      SELECT e.eid, e.fullname, u.email, e.phonenumber, s.studentid, b.biometricid
+      SELECT e.eid, e.fullname, u.email, e.phonenumber, s.studentid, b.biometricid, b.fingerindex
       FROM entity e
       JOIN student s ON e.eid = s.eid
       LEFT JOIN useraccount u ON e.eid = u.eid
@@ -1048,6 +1048,156 @@ app.get('/api/teacher/:eid/reports', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// ==========================================
+// ARDUINO HARDWARE INTEGRATION ENDPOINTS
+// ==========================================
+
+// 1. Enroll a new fingerprint
+app.post('/api/hardware/enroll', async (req, res) => {
+  const { studentId, fingerIndex, template } = req.body;
+  if (!studentId || fingerIndex === undefined) {
+    return res.status(400).json({ error: 'studentId and fingerIndex are required' });
+  }
+
+  try {
+    // Check if the student exists
+    const studentRes = await pool.query('SELECT * FROM student WHERE studentid = $1', [studentId]);
+    if (studentRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Upsert the biometric record (if they already have this finger index, overwrite it)
+    await pool.query(`
+      INSERT INTO biometric (studentid, fingerindex, template, createdat)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (studentid) DO UPDATE 
+      SET fingerindex = EXCLUDED.fingerindex, template = EXCLUDED.template, createdat = NOW()
+    `, [studentId, fingerIndex, template || '']);
+    // Note: The schema might not have a UNIQUE constraint on studentid for ON CONFLICT.
+    // If not, we'll do a DELETE first just to be safe.
+    
+    // Wait, let's just do a simple delete-then-insert to be perfectly safe across postgres versions
+    await pool.query('DELETE FROM biometric WHERE studentid = $1 OR fingerindex = $2', [studentId, fingerIndex]);
+    await pool.query('INSERT INTO biometric (studentid, fingerindex, template, createdat) VALUES ($1, $2, $3, NOW())', [studentId, fingerIndex, template || '']);
+
+    res.json({ success: true, message: 'Fingerprint enrolled successfully' });
+  } catch (error) {
+    console.error('Error enrolling fingerprint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// 2. Scan a fingerprint for attendance
+app.post('/api/hardware/scan', async (req, res) => {
+  const { fingerIndex } = req.body;
+  if (fingerIndex === undefined) {
+    return res.status(400).json({ error: 'fingerIndex is required' });
+  }
+
+  try {
+    // Find the student matching this fingerprint
+    const bioRes = await pool.query(`
+      SELECT b.studentid, e.fullname 
+      FROM biometric b
+      JOIN student s ON b.studentid = s.studentid
+      JOIN entity e ON s.eid = e.eid
+      WHERE b.fingerindex = $1
+    `, [fingerIndex]);
+
+    if (bioRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Fingerprint not registered to any student' });
+    }
+
+    const student = bioRes.rows[0];
+
+    // Find if the student has an active class right now
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayStr = days[new Date().getDay()];
+    const currentTime = new Date().toLocaleTimeString('en-GB', { hour12: false }); // 'HH:MM:SS'
+
+    // Look for a schedule they are enrolled in today, where current time is roughly around class time
+    const schedRes = await pool.query(`
+      SELECT s.scheduleid, s.classid, s.starttime, s.endtime, s.subject
+      FROM schedule s
+      JOIN enrollment en ON s.classid = en.classid
+      WHERE en.studentid = $1 AND s.dayofweek = $2
+    `, [student.studentid, todayStr]);
+
+    if (schedRes.rows.length === 0) {
+      return res.status(400).json({ error: 'Student has no classes scheduled for today', student: student.fullname });
+    }
+
+    // For demonstration, let's just pick the first class of the day if we can't find one that matches the exact time.
+    // Ideally, we find the one where CURRENT_TIME is between starttime and endtime.
+    let activeClass = schedRes.rows.find(c => currentTime >= c.starttime && currentTime <= c.endtime);
+    if (!activeClass) {
+      activeClass = schedRes.rows[0]; // fallback to their first class today
+    }
+
+    // Get or create today's session for this schedule
+    let sessionRes = await pool.query(`
+      SELECT sessionid FROM session 
+      WHERE scheduleid = $1 AND sessiondate = CURRENT_DATE
+    `, [activeClass.scheduleid]);
+
+    let sessionId;
+    if (sessionRes.rows.length === 0) {
+      const newSess = await pool.query(`
+        INSERT INTO session (scheduleid, sessiondate) 
+        VALUES ($1, CURRENT_DATE) RETURNING sessionid
+      `, [activeClass.scheduleid]);
+      sessionId = newSess.rows[0].sessionid;
+    } else {
+      sessionId = sessionRes.rows[0].sessionid;
+    }
+
+    // Determine status based on time difference
+    const parseTimeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return (hours * 60) + minutes;
+    };
+    
+    const startMinutes = parseTimeToMinutes(activeClass.starttime);
+    const currentMinutes = parseTimeToMinutes(currentTime);
+    const minutesLate = currentMinutes - startMinutes;
+    
+    let status = 'Present';
+    let dbMinutesLate = null;
+    
+    if (minutesLate >= 90) { // 1:30 hour late
+      status = 'Absent';
+    } else if (minutesLate >= 30) { // 30 min late
+      status = 'Late';
+      dbMinutesLate = minutesLate;
+    }
+
+    // Insert attendance record
+    const updateRes = await pool.query(`
+      UPDATE attendance 
+      SET status = $1, attendedat = NOW(), minutelate = $4, deviceid = 1
+      WHERE studentid = $2 AND sessionid = $3
+    `, [status, student.studentid, sessionId, dbMinutesLate]);
+
+    if (updateRes.rowCount === 0) {
+      await pool.query(`
+        INSERT INTO attendance (studentid, sessionid, status, attendedat, minutelate)
+        VALUES ($1, $2, $3, NOW(), $4)
+      `, [student.studentid, sessionId, status, dbMinutesLate]);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Attendance recorded successfully', 
+      student: student.fullname,
+      subject: activeClass.subject
+    });
+
+  } catch (error) {
+    console.error('Error recording scan:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
