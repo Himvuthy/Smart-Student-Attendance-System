@@ -441,7 +441,7 @@ const StudentDashboard = ({ onLogout }) => {
       && request.status === 'Approved'
     ));
     return approved ? { ...record, status: approved.expectedStatus, corrected: true } : record;
-  }), [correctionRequests]);
+  }), [myAttendance, correctionRequests]);
 
   const filteredRecords = useMemo(() => effectiveRecords.filter((record) => {
     const matchesSearch = `${record.subject} ${record.code} ${record.date}`.toLowerCase().includes(query.toLowerCase());
