@@ -926,7 +926,7 @@ const StudentDashboard = ({ onLogout }) => {
             <article key={course.code} className={`${card} group overflow-hidden shadow-[0_10px_28px_rgba(39,55,105,0.11)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(73,85,160,0.17)] dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]`}>
               <div className="p-5">
                 <div className="flex items-start justify-between">
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700 transition duration-300 group-hover:scale-105 dark:bg-violet-400/10 dark:text-violet-300">{course.code.slice(2)}</span>
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700 transition duration-300 group-hover:scale-105 dark:bg-violet-400/10 dark:text-violet-300">{course.name.slice(0, 2).toUpperCase()}</span>
                   <button aria-label={`More options for ${course.name}`} className={`rounded-lg p-1.5 transition hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-400/10 ${muted}`}><MoreHorizontal size={17} /></button>
                 </div>
                 <p className={`mt-5 text-[10px] font-black uppercase tracking-[0.15em] ${muted}`}>{course.code}</p>
