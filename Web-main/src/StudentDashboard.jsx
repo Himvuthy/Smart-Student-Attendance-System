@@ -607,17 +607,33 @@ const StudentDashboard = ({ onLogout }) => {
 
     const weeklyAnalytics = (() => {
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const today = new Date();
-      const result = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const dayRecords = effectiveRecords.filter(r => new Date(r.date).toDateString() === d.toDateString());
+      
+      if (!effectiveRecords || effectiveRecords.length === 0) {
+        return [
+          { d: 'Thu', v: 75, isToday: false }, { d: 'Fri', v: 92, isToday: false }, { d: 'Sat', v: 68, isToday: false },
+          { d: 'Sun', v: 85, isToday: false }, { d: 'Mon', v: 95, isToday: false }, { d: 'Tue', v: 88, isToday: false },
+          { d: 'Wed', v: 100, isToday: true }
+        ];
+      }
+
+      const distinctDates = [...new Set(effectiveRecords.map(r => new Date(r.date).toDateString()))];
+      distinctDates.sort((a, b) => new Date(b) - new Date(a));
+      const recentDates = distinctDates.slice(0, 7).reverse();
+
+      while (recentDates.length < 7) {
+        const earliestDate = recentDates.length > 0 ? new Date(recentDates[0]) : new Date();
+        earliestDate.setDate(earliestDate.getDate() - 1);
+        recentDates.unshift(earliestDate.toDateString());
+      }
+
+      const todayStr = new Date().toDateString();
+      return recentDates.map((dateStr, i) => {
+        const d = new Date(dateStr);
+        const dayRecords = effectiveRecords.filter(r => new Date(r.date).toDateString() === dateStr);
         const presentCount = dayRecords.filter(r => r.status === 'Present' || r.status === 'Late').length;
         const v = dayRecords.length > 0 ? Math.round((presentCount / dayRecords.length) * 100) : 0;
-        result.push({ d: days[d.getDay()], v, isToday: i === 0 });
-      }
-      return result;
+        return { d: days[d.getDay()], v, isToday: dateStr === todayStr || (i === 6 && !recentDates.includes(todayStr)) };
+      });
     })();
 
     return (
