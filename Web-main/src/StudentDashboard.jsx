@@ -602,6 +602,27 @@ const StudentDashboard = ({ onLogout }) => {
     const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const todaysClasses = mySchedule.filter((item) => item.day === todayDayName);
     
+    let nextClassData = { value: 'None', note: 'No more classes today' };
+    if (todaysClasses.length > 0) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      const upcomingClass = [...todaysClasses].sort((a, b) => a.time.localeCompare(b.time)).find(c => {
+        const endTimeStr = c.time.split(' - ')[1];
+        if (!endTimeStr) return true;
+        const [hours, minutes] = endTimeStr.split(':').map(Number);
+        const endMinutes = hours * 60 + minutes;
+        return endMinutes > currentMinutes;
+      });
+
+      if (upcomingClass) {
+        nextClassData = {
+          value: upcomingClass.time.split(' - ')[0],
+          note: upcomingClass.subject
+        };
+      }
+    }
+
     const presentPct = attendanceTotals.total > 0 ? Math.round((attendanceTotals.Present / attendanceTotals.total) * 100) : 0;
     const latePct = attendanceTotals.total > 0 ? Math.round((attendanceTotals.Late / attendanceTotals.total) * 100) : 0;
     const absentPct = attendanceTotals.total > 0 ? Math.round((attendanceTotals.Absent / attendanceTotals.total) * 100) : 0;
@@ -646,7 +667,7 @@ const StudentDashboard = ({ onLogout }) => {
           { label: 'Attendance Rate', value: `${attendanceTotals.rate}%`, note: 'Excellent standing', progress: attendanceTotals.rate, icon: TrendingUp },
           { label: 'Present Sessions', value: String(attendanceTotals.Present), note: 'View attendance', icon: CheckCircle2 },
           { label: 'Late Arrivals', value: String(attendanceTotals.Late), note: 'View details', icon: Clock3 },
-          { label: 'Next Class', value: todaysClasses.length > 0 ? todaysClasses[0].time.split(' - ')[0] : 'None', note: todaysClasses.length > 0 ? todaysClasses[0].subject : 'No more classes today', icon: BookOpen },
+          { label: 'Next Class', value: nextClassData.value, note: nextClassData.note, icon: BookOpen },
         ].map(({ label, value, note, progress, icon }) => (
           <div key={label} className={`${card} flex min-h-44 flex-col p-5`}>
             <div className="flex items-center gap-3">
