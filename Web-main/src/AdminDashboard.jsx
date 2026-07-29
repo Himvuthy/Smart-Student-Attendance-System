@@ -76,7 +76,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsUsersLoading(true);
     }
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/users');
+      const res = await fetch('http://localhost:5001/api/users');
       const data = await res.json();
       const formatted = data.map(u => ({
         id: u.userid,
@@ -115,7 +115,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsEntitiesLoading(true);
     }
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/entities');
+      const res = await fetch('http://localhost:5001/api/entities');
       if (res.ok) {
         const data = await res.json();
         setEntities(data);
@@ -134,7 +134,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsBiometricLoading(true);
     }
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/biometric/students');
+      const res = await fetch('http://localhost:5001/api/biometric/students');
       if (res.ok) {
         const data = await res.json();
         setBiometricStudents(data);
@@ -174,7 +174,7 @@ const AdminDashboard = ({ onLogout }) => {
     setNewUser({ fullname: '', username: '', email: '', password: '', roleid: 3 });
 
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/users', {
+      const res = await fetch('http://localhost:5001/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(optimisticUser)
@@ -219,7 +219,7 @@ const AdminDashboard = ({ onLogout }) => {
     setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' });
 
     try {
-      const url = isEdit ? `https://smart-student-attendance-system-nkka.onrender.com/api/entities/${tempEid}` : 'https://smart-student-attendance-system-nkka.onrender.com/api/entities';
+      const url = isEdit ? `http://localhost:5001/api/entities/${tempEid}` : 'http://localhost:5001/api/entities';
       const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -245,7 +245,7 @@ const AdminDashboard = ({ onLogout }) => {
     setEntities(prev => prev.filter(e => e.eid !== eid)); // OPTIMISTIC
     
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/entities/${eid}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5001/api/entities/${eid}`, { method: 'DELETE' });
       if (res.ok) {
         fetchEntities();
       } else {
@@ -273,7 +273,7 @@ const AdminDashboard = ({ onLogout }) => {
     setUsers(users.filter(user => user.id !== userId)); // Optimistic UI
     
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/users/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5001/api/users/${userId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete user');
       fetchUsers();
     } catch (error) {
@@ -291,7 +291,7 @@ const AdminDashboard = ({ onLogout }) => {
     setUsers(users.map(user => user.id === userId ? { ...user, name: newName } : user)); // Optimistic UI
     
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/users/${userId}`, {
+      const res = await fetch(`http://localhost:5001/api/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName })
@@ -341,7 +341,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsClassesLoading(true);
     }
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/classes');
+      const res = await fetch('http://localhost:5001/api/classes');
       const data = await res.json();
       setClasses(data);
       dataCache.current.classes = data;
@@ -362,7 +362,7 @@ const AdminDashboard = ({ onLogout }) => {
     setSelectedTimetableClass(cls);
     setIsTimetableLoading(true);
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/classes/${cls.classid}/schedules`);
+      const res = await fetch(`http://localhost:5001/api/classes/${cls.classid}/schedules`);
       const data = await res.json();
       setTimetableSchedules(data);
     } catch (error) {
@@ -395,7 +395,7 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       if (editingSchedule) {
         // Edit
-        const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/schedules/${editingSchedule.scheduleid}`, {
+        const res = await fetch(`http://localhost:5001/api/schedules/${editingSchedule.scheduleid}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(scheduleFormData)
@@ -404,7 +404,7 @@ const AdminDashboard = ({ onLogout }) => {
         setTimetableSchedules(prev => prev.map(s => s.scheduleid === updatedSched.scheduleid ? updatedSched : s));
       } else {
         // Add
-        const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/classes/${selectedTimetableClass.classid}/schedules`, {
+        const res = await fetch(`http://localhost:5001/api/classes/${selectedTimetableClass.classid}/schedules`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(scheduleFormData)
@@ -422,7 +422,7 @@ const AdminDashboard = ({ onLogout }) => {
   const handleDeleteSchedule = async (scheduleid) => {
     if (!window.confirm("Are you sure you want to delete this schedule?")) return;
     try {
-      await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/schedules/${scheduleid}`, {
+      await fetch(`http://localhost:5001/api/schedules/${scheduleid}`, {
         method: 'DELETE'
       });
       setTimetableSchedules(prev => prev.filter(s => s.scheduleid !== scheduleid));
@@ -439,7 +439,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch('https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/classes');
+      const res = await fetch('http://localhost:5001/api/attendance-tracking/classes');
       const data = await res.json();
       setTrackingClasses(data);
       dataCache.current.trackingClasses = data;
@@ -457,7 +457,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/classes/${classid}/sessions`);
+      const res = await fetch(`http://localhost:5001/api/attendance-tracking/classes/${classid}/sessions`);
       const data = await res.json();
       setTrackingSessions(data);
       dataCache.current.trackingSessions[classid] = data;
@@ -476,7 +476,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/attendance-tracking/sessions/${sessionid}/log`);
+      const res = await fetch(`http://localhost:5001/api/attendance-tracking/sessions/${sessionid}/log`);
       const data = await res.json();
       setTrackingLogs(data);
       dataCache.current.trackingLogs[sessionid] = data;
@@ -505,7 +505,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsSchedulesLoading(true);
     }
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/classes/${cls.classid}/schedules`);
+      const res = await fetch(`http://localhost:5001/api/classes/${cls.classid}/schedules`);
       const data = await res.json();
       setSchedules(data);
       dataCache.current.schedules[cls.classid] = data;
@@ -523,7 +523,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsAttendanceLoading(true);
     }
     try {
-      const res = await fetch(`https://smart-student-attendance-system-nkka.onrender.com/api/schedules/${sched.scheduleid}/attendance`);
+      const res = await fetch(`http://localhost:5001/api/schedules/${sched.scheduleid}/attendance`);
       const data = await res.json();
       setAttendanceData(data);
       dataCache.current.attendance[sched.scheduleid] = data;
