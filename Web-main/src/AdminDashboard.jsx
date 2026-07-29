@@ -1933,7 +1933,7 @@ const AdminDashboard = ({ onLogout }) => {
                                   {isRegistered ? 'Registered' : 'Not Registered'}
                                 </span>
                                 <span className={`text-[11px] ${mutedText} block mt-1`}>
-                                  {isRegistered ? `FP-${student.biometricid}` : '—'}
+                                  {isRegistered ? `FP-${student.fingerindex}` : '—'}
                                 </span>
                               </div>
                             </td>
