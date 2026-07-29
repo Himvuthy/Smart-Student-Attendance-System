@@ -2494,7 +2494,7 @@ const AdminDashboard = ({ onLogout }) => {
 
             {activeView === 'logs' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col pb-6">
-                <div className="bg-[#181a1f] rounded-2xl overflow-hidden shadow-2xl flex flex-col h-full flex-1 min-h-[500px]">
+                <div className="bg-[#181a1f] rounded-2xl overflow-hidden shadow-2xl flex flex-col h-full flex-1 min-h-[calc(100vh-150px)]">
                   {/* Console Header */}
                   <div className="bg-[#21252b] px-6 py-4 flex items-center justify-between border-b border-[#181a1f]">
                     <div className="flex items-center gap-4">
@@ -2509,7 +2509,7 @@ const AdminDashboard = ({ onLogout }) => {
                   </div>
                   
                   {/* Console Body */}
-                  <div className="p-6 overflow-y-auto custom-scrollbar h-full font-mono text-[14px] leading-[1.5] flex flex-col tracking-tight select-text">
+                  <div className="p-6 overflow-y-auto custom-scrollbar flex-1 font-mono text-[14px] leading-[1.5] flex flex-col tracking-tight select-text">
                     {[
                       { time:'8:34:58 AM', action:'DELETE_USER', msg:'User ID 16 deleted by Admin (Actor: him_vuthy)', color:'text-red-500' },
                       { time:'8:47:58 AM', action:'UPDATE_ROLE', msg:'Role changed to Teacher by Admin (Actor: him_vuthy)', color:'text-yellow-500' },
