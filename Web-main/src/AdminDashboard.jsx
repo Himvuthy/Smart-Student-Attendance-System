@@ -2833,11 +2833,7 @@ const AdminDashboard = ({ onLogout }) => {
                               </div>
                               <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
                             </div>
-                            <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
-                              <div className="flex items-center gap-2">
-                                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(cls.primary_lecturer || 'Unassigned')}&background=eef2ff&color=6366f1`} className="w-6 h-6 rounded-full" />
-                                <p className={`text-xs font-medium ${mutedText}`}>{cls.primary_lecturer || 'No Lecturer'}</p>
-                              </div>
+                            <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-end`}>
                               <button className={`text-xs font-bold hover:underline ${brandColor}`}>View Schedules</button>
                             </div>
                           </div>
