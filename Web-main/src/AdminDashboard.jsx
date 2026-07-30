@@ -3375,19 +3375,29 @@ const AdminDashboard = ({ onLogout }) => {
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Role</label>
-                <select value={newEntity.roleid} onChange={e => setNewEntity({...newEntity, roleid: parseInt(e.target.value)})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}>
-                  <option value={1} className={isDark ? 'text-black' : ''}>Admin</option>
-                  <option value={2} className={isDark ? 'text-black' : ''}>Teacher</option>
-                  <option value={3} className={isDark ? 'text-black' : ''}>Student</option>
-                </select>
+                <CustomSelect
+                  value={newEntity.roleid}
+                  onChange={val => setNewEntity({...newEntity, roleid: parseInt(val)})}
+                  options={[
+                    {value: 1, label: 'Admin'},
+                    {value: 2, label: 'Teacher'},
+                    {value: 3, label: 'Student'}
+                  ]}
+                  className={`w-full px-3 py-2 rounded-2xl border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Gender</label>
-                <select value={newEntity.gender} onChange={e => setNewEntity({...newEntity, gender: e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}>
-                  <option value="Male" className={isDark ? 'text-black' : ''}>Male</option>
-                  <option value="Female" className={isDark ? 'text-black' : ''}>Female</option>
-                  <option value="Other" className={isDark ? 'text-black' : ''}>Other</option>
-                </select>
+                <CustomSelect
+                  value={newEntity.gender}
+                  onChange={val => setNewEntity({...newEntity, gender: val})}
+                  options={[
+                    {value: 'Male', label: 'Male'},
+                    {value: 'Female', label: 'Female'},
+                    {value: 'Other', label: 'Other'}
+                  ]}
+                  className={`w-full px-3 py-2 rounded-2xl border ${borderSubColor} ${isDark ? 'bg-[#111]' : 'bg-white'}`}
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-1">Date of Birth</label>
