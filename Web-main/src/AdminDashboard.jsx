@@ -1224,16 +1224,8 @@ const AdminDashboard = ({ onLogout }) => {
               
               {notificationsOpen && (
                 <div className={`absolute right-0 top-12 z-50 w-80 rounded-[1.5rem] border ${borderColor} ${surfaceBg} p-4 shadow-xl`}>
-                  <div className={`flex items-center justify-between pb-3 mb-3 border-b ${borderColor}`}>
+                  <div className={`pb-3 mb-3 border-b ${borderColor}`}>
                     <h3 className="text-[15px] font-bold">Notifications</h3>
-                    <div className="flex items-center gap-2">
-                      <button className={`grid place-items-center w-7 h-7 rounded-full ${subBg} ${hoverBg} ${mutedText} transition`}>
-                        <Filter size={13} />
-                      </button>
-                      <button className="px-3 py-1.5 rounded-full bg-[#4f46e5] text-white text-[11px] font-bold hover:bg-[#4338ca] transition shadow-sm">
-                        New Lesson
-                      </button>
-                    </div>
                   </div>
                   <p className={`text-[13px] ${mutedText} px-1 pb-1`}>No new notifications.</p>
                 </div>
