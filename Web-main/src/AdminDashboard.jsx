@@ -90,6 +90,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem('adminTheme') === 'dark';
   });
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [adminSettings, setAdminSettings] = useState({
     checkInReminders: true,
@@ -1212,10 +1213,32 @@ const AdminDashboard = ({ onLogout }) => {
           
           <div className="flex items-center gap-5">
             <span className={`${mutedText} uppercase tracking-wider text-xs font-semibold hidden md:block`}>{currentDate}</span>
-            <button className={`${mutedText} ${buttonHoverText} transition relative p-2 ml-2`}>
-              <Bell size={20} />
-              <span className={`absolute top-1.5 right-1.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 border-2 ${isDark ? 'border-black' : 'border-white'}`}></span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className={`${mutedText} ${notificationsOpen ? brandColor : buttonHoverText} transition relative p-2 ml-2`}
+              >
+                <Bell size={20} />
+                <span className={`absolute top-1.5 right-1.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 border-2 ${isDark ? 'border-black' : 'border-white'}`}></span>
+              </button>
+              
+              {notificationsOpen && (
+                <div className={`absolute right-0 top-12 z-50 w-80 rounded-[1.5rem] border ${borderColor} ${surfaceBg} p-4 shadow-xl`}>
+                  <div className={`flex items-center justify-between pb-3 mb-3 border-b ${borderColor}`}>
+                    <h3 className="text-[15px] font-bold">Notifications</h3>
+                    <div className="flex items-center gap-2">
+                      <button className={`grid place-items-center w-7 h-7 rounded-full ${subBg} ${hoverBg} ${mutedText} transition`}>
+                        <Filter size={13} />
+                      </button>
+                      <button className="px-3 py-1.5 rounded-full bg-[#4f46e5] text-white text-[11px] font-bold hover:bg-[#4338ca] transition shadow-sm">
+                        New Lesson
+                      </button>
+                    </div>
+                  </div>
+                  <p className={`text-[13px] ${mutedText} px-1 pb-1`}>No new notifications.</p>
+                </div>
+              )}
+            </div>
             <div className={`h-8 w-px ${borderColor} mx-2`}></div>
             <div className="flex items-center gap-3 cursor-pointer">
               <img src="https://ui-avatars.com/api/?name=System+Admin&background=6366f1&color=fff" alt="Admin" className={`h-9 w-9 rounded-full shadow-sm border ${borderColor}`} />
