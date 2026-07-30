@@ -3071,47 +3071,49 @@ const AdminDashboard = ({ onLogout }) => {
                         </div>
                       )}
 
-                      <div>
-                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
-                        <CustomSelect 
-                          value={adminSettings.targetFilter}
-                          onChange={val => updateSetting('targetFilter', val)}
-                          options={[
-                            { value: 'All Classes', label: 'All Classes' },
-                            { value: 'Specific Class', label: 'Specific Class' },
-                            { value: 'Specific Student', label: 'Specific Student' }
-                          ]}
-                          className={inputStyle}
-                        />
-                      </div>
-
-                      {adminSettings.targetFilter === 'Specific Class' && (
-                        <div className="animate-fade-in">
-                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Select Class</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
                           <CustomSelect 
-                            value={adminSettings.reportClassId}
-                            onChange={val => updateSetting('reportClassId', val)}
+                            value={adminSettings.targetFilter}
+                            onChange={val => updateSetting('targetFilter', val)}
                             options={[
-                              { value: '', label: 'Select a class...' },
-                              ...classes.map(c => ({ value: c.classid, label: `${c.classcode} - ${c.classname}` }))
+                              { value: 'All Classes', label: 'All Classes' },
+                              { value: 'Specific Class', label: 'Specific Class' },
+                              { value: 'Specific Student', label: 'Specific Student' }
                             ]}
                             className={inputStyle}
                           />
                         </div>
-                      )}
 
-                      {adminSettings.targetFilter === 'Specific Student' && (
-                        <div className="animate-fade-in">
-                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Student ID or Name</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. ST-001 or John Doe"
-                            value={adminSettings.reportStudentId} 
-                            onChange={e => updateSetting('reportStudentId', e.target.value)} 
-                            className={inputStyle} 
-                          />
-                        </div>
-                      )}
+                        {adminSettings.targetFilter === 'Specific Class' && (
+                          <div className="animate-fade-in">
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Select Class</label>
+                            <CustomSelect 
+                              value={adminSettings.reportClassId}
+                              onChange={val => updateSetting('reportClassId', val)}
+                              options={[
+                                { value: '', label: 'Select a class...' },
+                                ...classes.map(c => ({ value: c.classid, label: `${c.classcode} - ${c.classname}` }))
+                              ]}
+                              className={inputStyle}
+                            />
+                          </div>
+                        )}
+
+                        {adminSettings.targetFilter === 'Specific Student' && (
+                          <div className="animate-fade-in">
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Student ID or Name</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. ST-001 or John Doe"
+                              value={adminSettings.reportStudentId} 
+                              onChange={e => updateSetting('reportStudentId', e.target.value)} 
+                              className={inputStyle} 
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-auto">
                       <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
