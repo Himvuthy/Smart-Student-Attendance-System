@@ -99,7 +99,10 @@ const AdminDashboard = ({ onLogout }) => {
     weeklySummary: false,
     loginAlerts: true,
     reminderTime: '15 minutes before',
-    language: 'English'
+    language: 'English',
+    timeRange: 'Daily',
+    targetFilter: 'All Classes',
+    autoBackup: 'Daily (Midnight)'
   });
   
   const updateSetting = (key, value) => {
@@ -3014,15 +3017,30 @@ const AdminDashboard = ({ onLogout }) => {
                     <div className="space-y-4 mb-6">
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Time Range</label>
-                        <select className={inputStyle}>
-                          <option>Daily</option><option>Weekly</option><option>Monthly</option><option>Semester</option>
-                        </select>
+                        <CustomSelect 
+                          value={adminSettings.timeRange}
+                          onChange={val => updateSetting('timeRange', val)}
+                          options={[
+                            { value: 'Daily', label: 'Daily' },
+                            { value: 'Weekly', label: 'Weekly' },
+                            { value: 'Monthly', label: 'Monthly' },
+                            { value: 'Semester', label: 'Semester' }
+                          ]}
+                          className={inputStyle}
+                        />
                       </div>
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
-                        <select className={inputStyle}>
-                          <option>All Classes</option><option>Specific Class</option><option>Specific Student</option>
-                        </select>
+                        <CustomSelect 
+                          value={adminSettings.targetFilter}
+                          onChange={val => updateSetting('targetFilter', val)}
+                          options={[
+                            { value: 'All Classes', label: 'All Classes' },
+                            { value: 'Specific Class', label: 'Specific Class' },
+                            { value: 'Specific Student', label: 'Specific Student' }
+                          ]}
+                          className={inputStyle}
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-auto">
@@ -3045,11 +3063,16 @@ const AdminDashboard = ({ onLogout }) => {
                       </div>
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>
-                        <select className={inputStyle}>
-                          <option>Daily (Midnight)</option>
-                          <option>Weekly (Sunday)</option>
-                          <option>Never</option>
-                        </select>
+                        <CustomSelect 
+                          value={adminSettings.autoBackup}
+                          onChange={val => updateSetting('autoBackup', val)}
+                          options={[
+                            { value: 'Daily (Midnight)', label: 'Daily (Midnight)' },
+                            { value: 'Weekly (Sunday)', label: 'Weekly (Sunday)' },
+                            { value: 'Never', label: 'Never' }
+                          ]}
+                          className={inputStyle}
+                        />
                       </div>
                       <div className={`pt-6 border-t ${borderSubColor}`}>
                         <button className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
