@@ -601,6 +601,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [scheduleFormData, setScheduleFormData] = useState({ subject: '', starttime: '', endtime: '', dayofweek: 'Monday', teacherid: '' });
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [scheduleDeleteConfirm, setScheduleDeleteConfirm] = useState(false);
 
   const fetchClasses = async () => {
     if (dataCache.current.classes) {
@@ -654,6 +655,7 @@ const AdminDashboard = ({ onLogout }) => {
       dayofweek: sched.dayofweek,
       teacherid: sched.teacherid || ''
     });
+    setScheduleDeleteConfirm(false);
     setShowScheduleModal(true);
   };
 
@@ -690,7 +692,6 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const handleDeleteSchedule = async (scheduleid) => {
-    if (!window.confirm("Are you sure you want to delete this schedule?")) return;
     try {
       await fetch(`${baseUrl}/api/schedules/${scheduleid}`, {
         method: 'DELETE'
@@ -3392,19 +3393,28 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
             <div className={`p-4 border-t ${borderSubColor} flex justify-between gap-2`}>
               {editingSchedule ? (
-                <button 
-                  onClick={() => {
-                    handleDeleteSchedule(editingSchedule.scheduleid);
-                    setShowScheduleModal(false);
-                  }}
-                  className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isDark ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400' : 'bg-red-50 hover:bg-red-100 text-red-600'}`}
-                >
-                  Delete
-                </button>
+                scheduleDeleteConfirm ? (
+                  <button 
+                    onClick={() => {
+                      handleDeleteSchedule(editingSchedule.scheduleid);
+                      setShowScheduleModal(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition bg-red-600 hover:bg-red-700 text-white animate-pulse`}
+                  >
+                    Confirm Delete?
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setScheduleDeleteConfirm(true)}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isDark ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400' : 'bg-red-50 hover:bg-red-100 text-red-600'}`}
+                  >
+                    Delete
+                  </button>
+                )
               ) : <div></div>}
               <div className="flex gap-2">
                 <button 
-                  onClick={() => setShowScheduleModal(false)}
+                  onClick={() => scheduleDeleteConfirm ? setScheduleDeleteConfirm(false) : setShowScheduleModal(false)}
                   className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                 >
                   Cancel
