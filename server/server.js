@@ -123,7 +123,8 @@ app.get('/api/admin/dashboard', async (req, res) => {
              e.fullname as lecturer, s.starttime, s.endtime
       FROM schedule s
       JOIN class c ON s.classid = c.classid
-      JOIN entity e ON c.lecturerid = e.eid
+      LEFT JOIN lecturer l ON l.classid = c.classid
+      LEFT JOIN entity e ON l.eid = e.eid
       WHERE s.dayofweek = $1
       ORDER BY s.starttime ASC
     `, [todayStr]);
@@ -1417,7 +1418,7 @@ app.get('/api/teacher/:eid/excuses', async (req, res) => {
     const classQuery = `
       SELECT c.classcode
       FROM class c
-      JOIN lecturer l ON c.lecturerid = l.lecturerid
+      JOIN lecturer l ON l.classid = c.classid
       WHERE l.eid = $1
     `;
     const classResult = await pool.query(classQuery, [eid]);
