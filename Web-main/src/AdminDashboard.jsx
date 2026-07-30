@@ -576,6 +576,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [unenrolledStudents, setUnenrolledStudents] = useState([]);
   const [enrollSearchQuery, setEnrollSearchQuery] = useState('');
+  const [enrollListSearchQuery, setEnrollListSearchQuery] = useState('');
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
 
   // --- TIMETABLE CRUD STATE ---
@@ -3208,7 +3209,7 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
             
             <div className={`p-4 border-b ${borderSubColor} bg-black/5`}>
-              <label className={`block text-xs font-bold mb-2 ${mutedText}`}>MANUAL ENTRY / SEARCH</label>
+              <label className={`block text-xs font-bold mb-2 ${mutedText}`}>MANUAL ENTRY</label>
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -3234,9 +3235,38 @@ const AdminDashboard = ({ onLogout }) => {
                   <p className="text-sm">All students are already enrolled</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                    <input 
+                      type="text" 
+                      placeholder="Search students (try gender=male)..." 
+                      value={enrollListSearchQuery}
+                      onChange={(e) => setEnrollListSearchQuery(e.target.value)}
+                      className={`w-full pl-9 pr-4 py-2 text-sm border rounded-2xl focus:outline-none transition-colors ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-200 text-gray-800 focus:border-indigo-500'}`} 
+                    />
+                  </div>
+                  <div className="space-y-2">
                   {unenrolledStudents
-                    .filter(s => String(s.studentid).toLowerCase().includes(enrollSearchQuery.toLowerCase()) || s.fullname.toLowerCase().includes(enrollSearchQuery.toLowerCase()))
+                    .filter(s => {
+                      const parts = enrollListSearchQuery.split(' ');
+                      const filters = {};
+                      let text = '';
+                      parts.forEach(part => {
+                        if (part.includes('=')) {
+                          const [k, v] = part.split('=');
+                          if (k && v) filters[k.toLowerCase()] = v.toLowerCase();
+                        } else {
+                          text += part + ' ';
+                        }
+                      });
+                      text = text.trim().toLowerCase();
+                      
+                      if (filters.gender && (!s.gender || s.gender.toLowerCase() !== filters.gender)) return false;
+                      if (text && !s.fullname.toLowerCase().includes(text) && !String(s.studentid).toLowerCase().includes(text)) return false;
+                      
+                      return true;
+                    })
                     .map(student => (
                     <div key={student.studentid} className={`flex items-center justify-between p-3 rounded-lg border ${borderSubColor} ${hoverBg}`}>
                       <div className="flex items-center gap-3">
