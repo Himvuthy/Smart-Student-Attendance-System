@@ -394,6 +394,29 @@ app.post('/api/classes', async (req, res) => {
   }
 });
 
+app.put('/api/classes/:classid', async (req, res) => {
+  const { classid } = req.params;
+  const { classcode, classname, academicyear, semester, majorid } = req.body;
+  if (!classcode || !classname) {
+    return res.status(400).json({ error: 'Class code and name are required' });
+  }
+
+  try {
+    const result = await pool.query(`
+      UPDATE class 
+      SET classcode = $1, classname = $2, academicyear = $3, semester = $4, majorid = $5
+      WHERE classid = $6
+      RETURNING classid, classcode, classname
+    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, classid]);
+    
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Class not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating class:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/classes/:classid/schedules', async (req, res) => {
   try {
     const { classid } = req.params;

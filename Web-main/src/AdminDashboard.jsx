@@ -552,28 +552,46 @@ const AdminDashboard = ({ onLogout }) => {
   const [classes, setClasses] = useState([]);
   const [isClassesLoading, setIsClassesLoading] = useState(false);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [editingClass, setEditingClass] = useState(null);
   const [majors, setMajors] = useState([]);
   const [newClass, setNewClass] = useState({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
   
   const handleCreateClassSubmit = async (e) => {
     e.preventDefault();
+    const isEdit = !!editingClass;
     try {
-      const res = await fetch(`${baseUrl}/api/classes`, {
-        method: 'POST',
+      const url = isEdit ? `${baseUrl}/api/classes/${editingClass.classid}` : `${baseUrl}/api/classes`;
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newClass)
       });
       if (res.ok) {
         setShowCreateClassModal(false);
+        setEditingClass(null);
         setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
         fetchTrackingClasses(); 
+        setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `${isEdit ? 'Modified' : 'Created'} class ${newClass.classcode}`, color: isEdit ? 'text-amber-400' : 'text-green-400' }]);
       } else {
-        alert('Failed to create class');
+        alert(`Failed to ${isEdit ? 'update' : 'create'} class`);
       }
     } catch (e) {
       console.error(e);
-      alert('Error creating class');
+      alert(`Error ${isEdit ? 'updating' : 'creating'} class`);
     }
+  };
+
+  const openEditClassModal = (cls) => {
+    setEditingClass(cls);
+    setNewClass({
+      classcode: cls.classcode || '',
+      classname: cls.classname || '',
+      academicyear: cls.academicyear || '2025-2026',
+      semester: cls.semester || 1,
+      majorid: cls.majorid || ''
+    });
+    setShowCreateClassModal(true);
   };
   
   const [selectedClass, setSelectedClass] = useState(null);
@@ -2812,7 +2830,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <h3 className="font-bold text-lg">Active Classes</h3>
                         <p className={`text-xs ${mutedText} mt-1`}>Manage rosters and view attendance sheets.</p>
                       </div>
-                      <button onClick={() => setShowCreateClassModal(true)} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
+                      <button onClick={() => { setEditingClass(null); setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' }); setShowCreateClassModal(true); }} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
                     </div>
                     {isClassesLoading ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
@@ -2833,7 +2851,13 @@ const AdminDashboard = ({ onLogout }) => {
                               </div>
                               <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
                             </div>
-                            <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-end`}>
+                            <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
+                                className={`text-xs font-bold hover:underline ${mutedText}`}
+                              >
+                                Edit
+                              </button>
                               <button className={`text-xs font-bold hover:underline ${brandColor}`}>View Schedules</button>
                             </div>
                           </div>
@@ -2846,7 +2870,7 @@ const AdminDashboard = ({ onLogout }) => {
                 {showCreateClassModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className={`${surfaceBg} rounded-3xl p-8 w-full max-w-md shadow-2xl border ${borderColor}`}>
-                      <h3 className={`text-xl font-bold mb-6 ${textColor}`}>Create New Class</h3>
+                      <h3 className={`text-xl font-bold mb-6 ${textColor}`}>{editingClass ? 'Edit Class' : 'Create New Class'}</h3>
                       <form onSubmit={handleCreateClassSubmit} className="space-y-4">
                         <div>
                           <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Code</label>
@@ -2879,8 +2903,8 @@ const AdminDashboard = ({ onLogout }) => {
                           </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-8">
-                          <button type="button" onClick={() => setShowCreateClassModal(false)} className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${subBg} ${textColor} hover:bg-gray-200 dark:hover:bg-gray-800`}>Cancel</button>
-                          <button type="submit" className={`px-5 py-2.5 rounded-xl font-semibold text-white transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-600 hover:bg-indigo-700'}`}>Create Class</button>
+                          <button type="button" onClick={() => { setShowCreateClassModal(false); setEditingClass(null); }} className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${subBg} ${textColor} hover:bg-gray-200 dark:hover:bg-gray-800`}>Cancel</button>
+                          <button type="submit" className={`px-5 py-2.5 rounded-xl font-semibold text-white transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{editingClass ? 'Save Changes' : 'Create Class'}</button>
                         </div>
                       </form>
                     </div>
