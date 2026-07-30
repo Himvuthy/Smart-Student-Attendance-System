@@ -155,8 +155,8 @@ app.get('/api/admin/dashboard', async (req, res) => {
       SELECT 
         a.attendanceid as id,
         e.fullname as name,
-        c.classcode as course,
-        c.classname as courseName,
+        sch.subject as course,
+        c.classname as coursename,
         a.attendedat as time,
         a.status
       FROM attendance a
