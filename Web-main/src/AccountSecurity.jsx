@@ -3,7 +3,7 @@ import { CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, X } fr
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://smart-student-attendance-system-nkka.onrender.com';
 
-const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#8b5cf6] dark:border-white/10 dark:bg-[#151d2c]';
+const inputClass = 'w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#8b5cf6] dark:border-white/10 dark:bg-[#151d2c]';
 
 export default function AccountSecurity({ user, storageKey, card, muted }) {
   const [modal, setModal] = useState(null);
@@ -102,7 +102,7 @@ export default function AccountSecurity({ user, storageKey, card, muted }) {
   return (
     <>
       <section className={`${card} overflow-hidden`}>
-        <div className="flex items-center gap-3 border-b border-slate-100 p-5 dark:border-white/10">
+        <div className="flex items-center gap-3 border-b border-[#e2e8f0] p-5 dark:border-white/10">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-400/10 dark:text-violet-300">
             <ShieldCheck size={19} />
           </span>
@@ -111,13 +111,13 @@ export default function AccountSecurity({ user, storageKey, card, muted }) {
             <p className={`mt-0.5 text-xs ${muted}`}>Protect your dashboard and sign-in details.</p>
           </div>
         </div>
-        <div className="divide-y divide-slate-100 px-5 dark:divide-white/10">
+        <div className="divide-y divide-[#e2e8f0] px-5 dark:divide-white/10">
           <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <KeyRound size={18} className="mt-0.5 text-violet-500" />
               <div><p className="text-sm font-bold">Change password</p><p className={`mt-1 text-xs ${muted}`}>Use at least 8 characters and avoid reused passwords.</p></div>
             </div>
-            <button onClick={() => { setFeedback({ type: '', text: '' }); setModal('password'); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold transition hover:border-violet-400 hover:text-violet-600 dark:border-white/10">
+            <button onClick={() => { setFeedback({ type: '', text: '' }); setModal('password'); }} className="rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-xs font-bold transition hover:border-violet-400 hover:text-violet-600 dark:border-white/10">
               Change password
             </button>
           </div>
@@ -129,7 +129,7 @@ export default function AccountSecurity({ user, storageKey, card, muted }) {
                 <p className={`mt-1 text-xs ${muted}`}>Confirm sign-ins with a six-digit code sent to your email.</p>
               </div>
             </div>
-            <button onClick={() => { setFeedback({ type: '', text: '' }); setModal('twoStep'); }} className={`rounded-xl px-4 py-2.5 text-xs font-bold transition ${twoStepEnabled ? 'border border-slate-200 hover:border-rose-300 hover:text-rose-600 dark:border-white/10' : 'bg-gradient-to-r from-[#526fd5] to-[#8257df] text-white hover:opacity-90'}`}>
+            <button onClick={() => { setFeedback({ type: '', text: '' }); setModal('twoStep'); }} className={`rounded-xl px-4 py-2.5 text-xs font-bold transition ${twoStepEnabled ? 'border border-[#e2e8f0] hover:border-rose-300 hover:text-rose-600 dark:border-white/10' : 'bg-gradient-to-r from-[#526fd5] to-[#8257df] text-white hover:opacity-90'}`}>
               {twoStepEnabled ? 'Turn off' : 'Set up'}
             </button>
           </div>
@@ -165,7 +165,7 @@ export default function AccountSecurity({ user, storageKey, card, muted }) {
               </form>
             ) : (
               <div className="mt-5">
-                <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                <div className="rounded-xl border border-[#e2e8f0] p-4 dark:border-white/10">
                   <p className="text-xs font-bold">Verification email</p>
                   <p className={`mt-1 text-sm ${muted}`}>{user?.email || 'No email address available'}</p>
                   <button onClick={sendVerificationCode} className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-300">

@@ -22,6 +22,25 @@ port.on('open', () => {
   console.log('--------------------------------------------------');
   console.log('💡 TIP: You can type numbers here and press ENTER to send them to the Arduino!');
   console.log('--------------------------------------------------');
+
+  // Start sending heartbeats every 5 seconds
+  setInterval(() => {
+    const payload = JSON.stringify({ deviceName: 'AS608-Serial', location: 'Lab 1' });
+    const options = {
+      hostname: 'localhost',
+      port: 3000,
+      path: '/api/hardware/heartbeat',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const req = http.request(options, (res) => {});
+    req.on('error', (e) => {}); // Silent fail if server offline
+    req.write(payload);
+    req.end();
+  }, 5000);
 });
 
 port.on('error', (err) => {

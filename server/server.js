@@ -358,6 +358,16 @@ app.delete('/api/entities/:eid', async (req, res) => {
 
 // --- NEW APIS for Class -> Schedule -> Attendance ---
 
+app.get('/api/majors', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM major');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching majors:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/classes', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -369,6 +379,26 @@ app.get('/api/classes', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching classes:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/classes', async (req, res) => {
+  const { classcode, classname, academicyear, semester, majorid } = req.body;
+  if (!classcode || !classname) {
+    return res.status(400).json({ error: 'Class code and name are required' });
+  }
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO class (classcode, classname, academicyear, semester, majorid)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING classid, classcode, classname
+    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating class:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1190,8 +1220,100 @@ app.get('/api/teacher/:eid/reports', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 // ==========================================
+// ==========================================
 // ARDUINO HARDWARE INTEGRATION ENDPOINTS
 // ==========================================
+
+let scannerStatus = { online: false, lastSync: null, deviceName: null, location: null };
+
+app.post('/api/hardware/heartbeat', (req, res) => {
+  const devName = req.body.deviceName || 'AS608';
+  console.log(`\n[ARDUINO BACKEND] 🟢 Scanner Plugged In / Heartbeat Received!`);
+  console.log(`[ARDUINO BACKEND] Device Name: ${devName}`);
+  console.log(`[ARDUINO BACKEND] Status: ONLINE\n`);
+
+  scannerStatus = {
+    online: true,
+    lastSync: new Date().toISOString(),
+    deviceName: devName,
+    location: req.body.location || 'Main Entrance'
+  };
+  res.json({ success: true, message: 'Heartbeat received' });
+});
+
+app.get('/api/devices', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM device');
+    
+    // Check heartbeat timeout
+    if (scannerStatus.lastSync) {
+      const diff = new Date() - new Date(scannerStatus.lastSync);
+      if (diff > 30000) {
+        scannerStatus.online = false;
+      }
+    }
+
+    const devices = result.rows.map(dev => {
+      let isOnline = false;
+      let lastSync = dev.lastseen;
+      
+      // If the heartbeat in memory matches this device's name
+      if (scannerStatus.deviceName === dev.devicename && scannerStatus.online) {
+        isOnline = true;
+        lastSync = scannerStatus.lastSync;
+        
+        // Update lastseen in DB asynchronously
+        pool.query('UPDATE device SET lastseen = $1 WHERE deviceid = $2', [new Date(), dev.deviceid]).catch(e => {});
+      }
+      
+      return {
+        ...dev,
+        online: isOnline,
+        lastSync: lastSync
+      };
+    });
+    
+    // If there's an active scanner not in the DB, we can optionally append it as 'Unregistered'
+    // but the user should use 'Register Device' anyway.
+    
+    res.json(devices);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/devices', async (req, res) => {
+  const { devicename, location } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO device (devicename, location, lastseen) VALUES ($1, $2, NOW()) RETURNING *',
+      [devicename, location]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/devices/:id', async (req, res) => {
+  const { id } = req.params;
+  const { devicename, location } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE device SET devicename = $1, location = $2 WHERE deviceid = $3 RETURNING *',
+      [devicename, location, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // 1. Enroll a new fingerprint
 app.post('/api/hardware/enroll', async (req, res) => {
@@ -1496,6 +1618,25 @@ app.get('/api/teacher/students/:classid', async (req, res) => {
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- ADMIN QUERY TERMINAL ---
+app.post('/api/admin/query', async (req, res) => {
+  const { query } = req.body;
+  if (!query) {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+  
+  try {
+    const result = await pool.query(query);
+    res.json({
+      command: result.command,
+      rowCount: result.rowCount,
+      rows: result.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

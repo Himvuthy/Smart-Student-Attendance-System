@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Fingerprint, Bell, LayoutDashboard, Database, BookOpen, 
   Cpu, FileText, Terminal, Settings, LogOut, 
@@ -13,6 +13,53 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieC
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const baseUrl = API_BASE.replace(/\/$/, '');
+
+const CustomSelect = ({ value, onChange, options, className }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectRef = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (selectRef.current && !selectRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(opt => opt.value === value) || options[0];
+
+  return (
+    <div className="relative" ref={selectRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`${className} flex items-center justify-between min-w-[150px] outline-none`}
+      >
+        <span className="truncate">{selectedOption.label}</span>
+        <svg className={`w-4 h-4 ml-2 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl dark:bg-[#111] dark:border-white/10 overflow-hidden">
+          {options.map((opt) => (
+            <div
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-sky-50 dark:hover:bg-white/5 transition-colors ${value === opt.value ? 'bg-sky-50/50 text-sky-600 font-bold dark:bg-sky-500/10 dark:text-sky-400' : 'text-gray-700 dark:text-gray-300 font-medium'}`}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 const AdminDashboard = ({ onLogout }) => {
@@ -83,6 +130,61 @@ const AdminDashboard = ({ onLogout }) => {
   });
   const [isAdminDashLoading, setIsAdminDashLoading] = useState(false);
 
+  // Terminal UI State
+  const [activeTerminalTab, setActiveTerminalTab] = useState('log');
+  const [terminalLogs, setTerminalLogs] = useState([
+    { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: 'System logs initialized. Ready for queries.', color: 'text-blue-400' },
+    { time: new Date().toLocaleTimeString(), action: 'INFO', msg: 'Type a SQL query and press Enter to execute.', color: 'text-gray-400' }
+  ]);
+  const [terminalInput, setTerminalInput] = useState('');
+  const terminalEndRef = useRef(null);
+
+  const handleTerminalSubmit = async (e) => {
+    if (e.key === 'Enter' && terminalInput.trim()) {
+      const command = terminalInput.trim();
+      setTerminalInput('');
+      const timeStr = new Date().toLocaleTimeString();
+      
+      setTerminalLogs(prev => [...prev, {
+        time: timeStr, action: 'ADMIN_QUERY', msg: `> ${command}`, color: 'text-gray-300'
+      }]);
+
+      try {
+        const res = await fetch(`${baseUrl}/api/admin/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: command })
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          setTerminalLogs(prev => [...prev, {
+            time: new Date().toLocaleTimeString(), action: 'ERROR', msg: data.error || 'Failed to execute query', color: 'text-red-500'
+          }]);
+        } else {
+          let msg = `[${data.command || 'QUERY'}] Successfully executed. RowCount: ${data.rowCount || 0}`;
+          if (data.rows && data.rows.length > 0) {
+            msg += `\n` + JSON.stringify(data.rows.slice(0, 10), null, 2);
+            if (data.rows.length > 10) msg += `\n... (Showing 10 of ${data.rows.length} rows)`;
+          }
+          setTerminalLogs(prev => [...prev, {
+            time: new Date().toLocaleTimeString(), action: 'SUCCESS', msg, color: 'text-green-400'
+          }]);
+        }
+      } catch (err) {
+        setTerminalLogs(prev => [...prev, {
+          time: new Date().toLocaleTimeString(), action: 'ERROR', msg: err.message, color: 'text-red-500'
+        }]);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === 'logs' && terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [terminalLogs, activeView]);
+
   const fetchAdminDashboard = async () => {
     try {
       setIsAdminDashLoading(true);
@@ -110,6 +212,53 @@ const AdminDashboard = ({ onLogout }) => {
   const [biometricStudents, setBiometricStudents] = useState([]);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const [hardwareDevices, setHardwareDevices] = useState([]);
+  const [showRegisterDeviceModal, setShowRegisterDeviceModal] = useState(false);
+  const [newDevice, setNewDevice] = useState({ devicename: '', location: '' });
+  
+  const [showConfigureDeviceModal, setShowConfigureDeviceModal] = useState(false);
+  const [editingDevice, setEditingDevice] = useState({ deviceid: null, devicename: '', location: '' });
+
+  const handleConfigureDeviceSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${baseUrl}/api/devices/${editingDevice.deviceid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devicename: editingDevice.devicename, location: editingDevice.location })
+      });
+      if (res.ok) {
+        setShowConfigureDeviceModal(false);
+        setEditingDevice({ deviceid: null, devicename: '', location: '' });
+        fetchHardwareDevices();
+      } else {
+        alert('Failed to configure device');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error configuring device');
+    }
+  };
+
+  const handleRegisterDeviceSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${baseUrl}/api/devices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDevice)
+      });
+      if (res.ok) {
+        setShowRegisterDeviceModal(false);
+        setNewDevice({ devicename: '', location: '' });
+        fetchHardwareDevices();
+      } else {
+        alert('Failed to register device');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error registering device');
+    }
+  };
 
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -148,6 +297,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [entitySearchQuery, setEntitySearchQuery] = useState('');
   const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [logSortOption, setLogSortOption] = useState('name_asc');
   const [sessionSearchQuery, setSessionSearchQuery] = useState('');
   const [editingEntity, setEditingEntity] = useState(null);
   const [newEntity, setNewEntity] = useState({
@@ -204,12 +354,31 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
+  const fetchMajors = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/api/majors`);
+      if (res.ok) {
+        const data = await res.json();
+        setMajors(data);
+      }
+    } catch (e) { console.error(e); }
+  };
+
   useEffect(() => {
+    fetchMajors();
+  }, []);
+
+  useEffect(() => {
+    let interval;
     if (activeView === 'database') fetchUsers();
     else if (activeView === 'attendance') { fetchTrackingClasses(); setTrackingLevel('classes'); }
     else if (activeView === 'entities') fetchEntities();
     else if (activeView === 'biometric') fetchBiometricStudents();
-    else if (activeView === 'hardware') fetchHardwareDevices();
+    else if (activeView === 'hardware') {
+      fetchHardwareDevices();
+      interval = setInterval(fetchHardwareDevices, 3000);
+    }
+    return () => { if (interval) clearInterval(interval); };
   }, [activeView]);
 
   const handleAddUserSubmit = async (e) => {
@@ -367,6 +536,30 @@ const AdminDashboard = ({ onLogout }) => {
   // --- CLASS & ATTENDANCE DATA ---
   const [classes, setClasses] = useState([]);
   const [isClassesLoading, setIsClassesLoading] = useState(false);
+  const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [majors, setMajors] = useState([]);
+  const [newClass, setNewClass] = useState({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
+  
+  const handleCreateClassSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${baseUrl}/api/classes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newClass)
+      });
+      if (res.ok) {
+        setShowCreateClassModal(false);
+        setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
+        fetchTrackingClasses(); 
+      } else {
+        alert('Failed to create class');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error creating class');
+    }
+  };
   
   const [selectedClass, setSelectedClass] = useState(null);
   const [schedules, setSchedules] = useState([]);
@@ -528,20 +721,34 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const fetchTrackingLogs = async (sessionid) => {
+    if (sessionid === 'mock-today') {
+      setTrackingLogs([]);
+      setTrackingLevel('log');
+      return;
+    }
+
     if (dataCache.current.trackingLogs[sessionid]) {
       setTrackingLogs(dataCache.current.trackingLogs[sessionid]);
       setTrackingLevel('log');
     } else {
       setIsTrackingLoading(true);
     }
+    
     try {
       const res = await fetch(`${baseUrl}/api/attendance-tracking/sessions/${sessionid}/log`);
+      if (!res.ok) {
+        throw new Error('Server returned an error');
+      }
       const data = await res.json();
-      setTrackingLogs(data);
-      dataCache.current.trackingLogs[sessionid] = data;
+      // Ensure we always have an array
+      const validData = Array.isArray(data) ? data : [];
+      setTrackingLogs(validData);
+      dataCache.current.trackingLogs[sessionid] = validData;
       setTrackingLevel('log');
     } catch (error) {
       console.error('Failed to fetch tracking logs', error);
+      setTrackingLogs([]);
+      setTrackingLevel('log');
     }
     setIsTrackingLoading(false);
   };
@@ -828,7 +1035,7 @@ const AdminDashboard = ({ onLogout }) => {
   // --- DYNAMIC THEME CLASSES ---
   const appBg = isDark ? "bg-black" : "bg-[#e2e8f0]";
   const surfaceBg = isDark ? "bg-black" : "bg-white";
-  const borderColor = isDark ? "border-white/10" : "border-[#f1f5f9]";
+  const borderColor = isDark ? "border-white/10 divide-white/10" : "border-[#e2e8f0] divide-[#e2e8f0]";
   const borderSubColor = isDark ? "border-white/5 divide-white/5" : "border-gray-200 divide-gray-200";
   const textColor = isDark ? "text-white" : "text-gray-800";
   const mutedText = isDark ? "text-gray-400" : "text-slate-500";
@@ -841,7 +1048,7 @@ const AdminDashboard = ({ onLogout }) => {
   const buttonHoverText = isDark ? 'hover:text-cyan-400' : 'hover:text-indigo-600';
   
   const cardStyle = `${surfaceBg} rounded-3xl p-8 flex flex-col ${isDark ? 'shadow-[0_0_15px_rgba(255,255,255,0.02)] border border-white/5' : 'shadow-sm'}`;
-  const inputStyle = `w-full p-2.5 text-sm border rounded-lg focus:outline-none transition-colors ${isDark ? 'bg-[#111] border-white/20 text-white focus:border-cyan-400 [&>option]:bg-black [&>option]:text-white' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-indigo-500 [&>option]:bg-white [&>option]:text-gray-800'}`;
+  const inputStyle = `w-full p-2.5 text-sm border rounded-2xl focus:outline-none transition-colors ${isDark ? 'bg-[#111] border-white/20 text-white focus:border-cyan-400 [&>option]:bg-black [&>option]:text-white' : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-indigo-500 [&>option]:bg-white [&>option]:text-gray-800'}`;
 
   // --- SKELETON LOADERS ---
   const SkeletonRow = ({ cols = 6 }) => (
@@ -1100,7 +1307,7 @@ const AdminDashboard = ({ onLogout }) => {
 
                 <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
                   <div className={`${cardStyle} overflow-hidden`}>
-                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                    <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-4 dark:border-white/10">
                       <div>
                         <h3 className="font-extrabold text-gray-900 dark:text-white">Attendance Analytics</h3>
                         <p className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400`}>Weekly system check-in performance</p>
@@ -1109,23 +1316,42 @@ const AdminDashboard = ({ onLogout }) => {
                     <div className="p-5">
                       <div className="relative h-64 pl-9">
                         <div className="absolute inset-y-0 left-9 right-0 flex flex-col justify-between text-[10px] text-slate-400">
-                          {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-slate-100 dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
+                          {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-[#e2e8f0] dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
                         </div>
                         <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
-                          {adminDashboardData.weeklyData && adminDashboardData.weeklyData.length > 0 ? adminDashboardData.weeklyData.map((d, i) => {
-                            const v = d.total_count > 0 ? Math.round((d.present_count / d.total_count) * 100) : 0;
-                            const isToday = i === adminDashboardData.weeklyData.length - 1;
-                            const dateStr = new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' });
-                            return (
-                              <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                                <span className={`text-[10px] font-bold ${isToday ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : 'text-slate-500'}`}>{v}%</span>
-                                <div className={`w-full max-w-16 rounded-xl ${isToday ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v > 0 ? Math.max(v * 1.75, 4) : 0}px` }} />
-                                <span className={`text-xs font-medium text-slate-500`}>{dateStr}</span>
-                              </div>
-                            );
-                          }) : (
-                            <p className="text-sm text-gray-500 m-auto">No weekly data available</p>
-                          )}
+                          {(() => {
+                            const dates = [];
+                            const curr = new Date();
+                            const dayOfWeek = curr.getDay(); // 0 is Sun, 1 is Mon
+                            const first = curr.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                            for (let i = 0; i < 7; i++) {
+                              const day = new Date(curr.getTime());
+                              day.setDate(first + i);
+                              dates.push(day);
+                            }
+                            return dates.map((dateObj, i) => {
+                              const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                              const d = (adminDashboardData.weeklyData || []).find(wd => {
+                                const wdDate = new Date(wd.date);
+                                return wdDate.getFullYear() === dateObj.getFullYear() && 
+                                       wdDate.getMonth() === dateObj.getMonth() && 
+                                       wdDate.getDate() === dateObj.getDate();
+                              }) || { present_count: 0, total_count: 0 };
+                              
+                              const v = d.total_count > 0 ? Math.round((d.present_count / d.total_count) * 100) : 0;
+                              const isToday = new Date().getFullYear() === dateObj.getFullYear() && 
+                                              new Date().getMonth() === dateObj.getMonth() && 
+                                              new Date().getDate() === dateObj.getDate();
+                              
+                              return (
+                                <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                                  <span className={`text-[10px] font-bold ${isToday ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : 'text-slate-500'}`}>{v}%</span>
+                                  <div className={`w-full max-w-16 rounded-xl ${isToday ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v > 0 ? Math.max(v * 1.75, 4) : 0}px` }} />
+                                  <span className={`text-xs font-medium text-slate-500`}>{dateStr}</span>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1133,7 +1359,7 @@ const AdminDashboard = ({ onLogout }) => {
 
                   <div className="space-y-4">
                     <div className={`${cardStyle} overflow-hidden`}>
-                      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                      <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-4 dark:border-white/10">
                         <h3 className="font-extrabold text-gray-900 dark:text-white">Today's Classes</h3>
                         <span className={`flex items-center gap-2 text-xs text-gray-500`}><span className="h-2 w-2 rounded-full bg-emerald-400" />{adminDashboardData.todaysClasses.length} sessions</span>
                       </div>
@@ -1156,7 +1382,7 @@ const AdminDashboard = ({ onLogout }) => {
                     </div>
                     
                     <div className={`${cardStyle} overflow-hidden`}>
-                      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                      <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-4 dark:border-white/10">
                         <h3 className="font-extrabold text-gray-900 dark:text-white">Attendance Breakdown</h3>
                         <Fingerprint size={18} className="text-gray-500" />
                       </div>
@@ -1177,11 +1403,17 @@ const AdminDashboard = ({ onLogout }) => {
                 </section>
 
                 <section className={`${cardStyle} mt-4 overflow-hidden`}>
-                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                  <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-4 dark:border-white/10">
                     <div>
                       <h3 className="font-extrabold text-gray-900 dark:text-white">Recent Attendance</h3>
                       <p className={`mt-0.5 text-xs text-gray-500`}>Latest system-wide check-ins</p>
                     </div>
+                    <button 
+                      onClick={() => setActiveView('attendance')}
+                      className={`text-sm font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition-colors bg-sky-50 dark:bg-sky-500/10 px-4 py-1.5 rounded-full`}
+                    >
+                      More
+                    </button>
                   </div>
                   <div className="w-full overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
@@ -1207,7 +1439,7 @@ const AdminDashboard = ({ onLogout }) => {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col">
                                 <span className="font-medium text-gray-900 dark:text-gray-200">{record.course}</span>
-                                <span className="text-xs">{record.courseName}</span>
+                                <span className="text-xs">{record.coursename}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -1483,6 +1715,20 @@ const AdminDashboard = ({ onLogout }) => {
                                 <p className={`${mutedText} mt-1 text-[13px] font-semibold`}>Live attendance log for {selectedTrackingSession?.subject} on {selectedTrackingSession ? new Date(selectedTrackingSession.sessiondate).toLocaleDateString() : ''}</p>
                               </div>
                               <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                                <div className="flex items-center gap-2 mr-2">
+                                  <CustomSelect
+                                    value={logSortOption}
+                                    onChange={(val) => setLogSortOption(val)}
+                                    options={[
+                                      { value: 'name_asc', label: 'Name (A-Z)' },
+                                      { value: 'name_desc', label: 'Name (Z-A)' },
+                                      { value: 'time_desc', label: 'Time In (Latest)' },
+                                      { value: 'time_asc', label: 'Time In (Oldest)' },
+                                      { value: 'id_asc', label: 'Student ID (Asc)' }
+                                    ]}
+                                    className={`px-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`}
+                                  />
+                                </div>
                                 <div className="relative flex-1 sm:flex-initial">
                                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
                                   <input 
@@ -1504,41 +1750,37 @@ const AdminDashboard = ({ onLogout }) => {
                               <h3 className={`font-bold ${textColor}`}>Present & Late Students</h3>
                               <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>Total: {trackingLogs.filter(log => log.status !== 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || (log.studentid?.toString().includes(logSearchQuery)) || log.eid.toString().includes(logSearchQuery))).length}</span>
                             </div>
-
-                            <div className={`border-b-2 ${borderSubColor}`}>
-                              <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
-                                <colgroup>
-                                  <col className="w-[15%]" />
-                                  <col className="w-[20%]" />
-                                  <col className="w-[10%]" />
-                                  <col className="w-[10%]" />
-                                  <col className="w-[45%]" />
-                                </colgroup>
-                                <thead>
-                                  <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
-                                    <th className="px-4 py-4">StudentID</th>
-                                    <th className="px-4 py-4">Name</th>
-                                    <th className="px-4 py-4">Class</th>
-                                    <th className="px-4 py-4">Time In</th>
-                                    <th className="px-4 py-4">Status</th>
-                                  </tr>
-                                </thead>
-                              </table>
                             </div>
-                          </div>
                           
                           <div className="overflow-x-auto pb-4">
                             <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
                               <colgroup>
                                 <col className="w-[15%]" />
-                                <col className="w-[20%]" />
-                                <col className="w-[10%]" />
-                                <col className="w-[10%]" />
-                                <col className="w-[45%]" />
+                                <col className="w-[30%]" />
+                                <col className="w-[15%]" />
+                                <col className="w-[15%]" />
+                                <col className="w-[25%]" />
                               </colgroup>
+                              <thead>
+                                <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
+                                  <th className="px-4 py-4">StudentID</th>
+                                  <th className="px-4 py-4">Name</th>
+                                  <th className="px-4 py-4">Class</th>
+                                  <th className="px-4 py-4">Time In</th>
+                                  <th className="px-4 py-4">Status</th>
+                                </tr>
+                              </thead>
                               <tbody className={`divide-y ${borderSubColor}`}>
                                 {trackingLogs
                                   .filter(log => log.status !== 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery)))
+                                  .sort((a, b) => {
+                                    if (logSortOption === 'name_asc') return a.fullname.localeCompare(b.fullname);
+                                    if (logSortOption === 'name_desc') return b.fullname.localeCompare(a.fullname);
+                                    if (logSortOption === 'time_desc') return new Date(b.attendedat || 0) - new Date(a.attendedat || 0);
+                                    if (logSortOption === 'time_asc') return new Date(a.attendedat || 0) - new Date(b.attendedat || 0);
+                                    if (logSortOption === 'id_asc') return (a.studentid || a.eid) - (b.studentid || b.eid);
+                                    return 0;
+                                  })
                                   .map((log, index) => (
                                   <tr key={index} className={`${hoverBg} transition-colors group`}>
                                     <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">
@@ -1582,39 +1824,46 @@ const AdminDashboard = ({ onLogout }) => {
                                 Total: {trackingLogs.filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery))).length}
                               </span>
                             </div>
-                            <div className={`border-b-2 ${borderSubColor}`}>
+                          </div>
+                          <div className="overflow-x-auto pb-4">
                               <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
                                 <colgroup>
-                                  <col className="w-[20%]" />
-                                  <col className="w-[60%]" />
-                                  <col className="w-[20%]" />
+                                  <col className="w-[15%]" />
+                                  <col className="w-[30%]" />
+                                  <col className="w-[15%]" />
+                                  <col className="w-[15%]" />
+                                  <col className="w-[25%]" />
                                 </colgroup>
                                 <thead>
-                                  <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
+                                  <tr className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
                                     <th className="px-4 py-4">StudentID</th>
                                     <th className="px-4 py-4">Name</th>
+                                    <th className="px-4 py-4">Class</th>
+                                    <th className="px-4 py-4">Time In</th>
                                     <th className="px-4 py-4">Status</th>
                                   </tr>
                                 </thead>
-                              </table>
-                            </div>
-                          </div>
-                          <div className="overflow-x-auto pb-4">
-                            <table className="w-full table-fixed text-[13px] text-left whitespace-nowrap">
-                              <colgroup>
-                                <col className="w-[20%]" />
-                                <col className="w-[60%]" />
-                                <col className="w-[20%]" />
-                              </colgroup>
-                              <tbody className={`divide-y ${borderSubColor}`}>
+                                <tbody className={`divide-y ${borderSubColor}`}>
                                 {trackingLogs
                                   .filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery)))
+                                  .sort((a, b) => {
+                                    if (logSortOption === 'name_asc') return a.fullname.localeCompare(b.fullname);
+                                    if (logSortOption === 'name_desc') return b.fullname.localeCompare(a.fullname);
+                                    if (logSortOption === 'time_desc') return new Date(b.attendedat || 0) - new Date(a.attendedat || 0);
+                                    if (logSortOption === 'time_asc') return new Date(a.attendedat || 0) - new Date(b.attendedat || 0);
+                                    if (logSortOption === 'id_asc') return (a.studentid || a.eid) - (b.studentid || b.eid);
+                                    return 0;
+                                  })
                                   .map((log, index) => (
                                   <tr key={index} className={`hover:${isDark ? 'bg-red-500/5' : 'bg-red-50'} transition-colors group`}>
                                     <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">
                                       {log.studentid || log.eid}
                                     </td>
                                     <td className="px-4 py-3 font-bold truncate">{log.fullname}</td>
+                                    <td className="px-4 py-3 font-bold truncate">{selectedTrackingClass?.classname || 'Unknown'}</td>
+                                    <td className="px-4 py-3 font-bold text-gray-500 dark:text-gray-400">
+                                      {log.attendedat ? new Date(log.attendedat).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                    </td>
                                     <td className="px-4 py-3">
                                       <span className={`px-2 py-1 rounded text-[10px] font-bold ${isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
                                         Absent
@@ -1624,7 +1873,7 @@ const AdminDashboard = ({ onLogout }) => {
                                 ))}
                                 {trackingLogs.filter(log => log.status === 'Absent' && (log.fullname.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.studentid?.toString().includes(logSearchQuery) || log.eid.toString().includes(logSearchQuery))).length === 0 && (
                                   <tr>
-                                    <td colSpan="3" className={`px-4 py-8 text-center font-bold ${mutedText} italic`}>No absent students.</td>
+                                    <td colSpan="5" className={`px-4 py-8 text-center font-bold ${mutedText} italic`}>No absent students.</td>
                                   </tr>
                                 )}
                               </tbody>
@@ -2385,6 +2634,26 @@ const AdminDashboard = ({ onLogout }) => {
                               {attendanceData.sessions.map(s => (
                                 <th key={s.sessionid} className={`px-2 py-1.5 text-center border ${borderSubColor}`}>{new Date(s.sessiondate).toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}</th>
                               ))}
+                              {Array.from({ length: Math.max(0, 15 - attendanceData.sessions.length) }).map((_, i) => {
+                                let startDate = new Date();
+                                if (attendanceData.sessions.length > 0) {
+                                  startDate = new Date(attendanceData.sessions[attendanceData.sessions.length - 1].sessiondate);
+                                  startDate.setDate(startDate.getDate() + 7);
+                                } else {
+                                  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                  const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek);
+                                  if (targetDayIndex !== -1) {
+                                    while (startDate.getDay() !== targetDayIndex) startDate.setDate(startDate.getDate() + 1);
+                                  }
+                                }
+                                const nextDate = new Date(startDate);
+                                nextDate.setDate(startDate.getDate() + (i * 7));
+                                return (
+                                  <th key={`empty-th-${i}`} className={`px-2 py-1.5 text-center border ${borderSubColor} min-w-[80px]`}>
+                                    {nextDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}
+                                  </th>
+                                );
+                              })}
                             </tr>
                           </thead>
                           <tbody>
@@ -2444,10 +2713,15 @@ const AdminDashboard = ({ onLogout }) => {
                                     </td>
                                   );
                                 })}
+                                {Array.from({ length: Math.max(0, 15 - attendanceData.sessions.length) }).map((_, i) => (
+                                  <td key={`empty-td-${i}`} className={`px-2 py-1.5 border ${borderSubColor}`}>
+                                    <span className="opacity-0 select-none">-</span>
+                                  </td>
+                                ))}
                               </tr>
                             ))}
                             {attendanceData.students.length === 0 && (
-                              <tr><td colSpan={attendanceData.sessions.length + 1} className="text-center py-6 font-bold text-gray-500">No students enrolled.</td></tr>
+                              <tr><td colSpan={Math.max(15, attendanceData.sessions.length) + 1} className="text-center py-6 font-bold text-gray-500">No students enrolled.</td></tr>
                             )}
                           </tbody>
                         </table>
@@ -2499,7 +2773,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <h3 className="font-bold text-lg">Active Classes</h3>
                         <p className={`text-xs ${mutedText} mt-1`}>Manage rosters and view attendance sheets.</p>
                       </div>
-                      <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
+                      <button onClick={() => setShowCreateClassModal(true)} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
                     </div>
                     {isClassesLoading ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
@@ -2533,6 +2807,47 @@ const AdminDashboard = ({ onLogout }) => {
                     )}
                   </div>
                 )}
+
+                {showCreateClassModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className={`${surfaceBg} rounded-3xl p-8 w-full max-w-md shadow-2xl border ${borderColor}`}>
+                      <h3 className={`text-xl font-bold mb-6 ${textColor}`}>Create New Class</h3>
+                      <form onSubmit={handleCreateClassSubmit} className="space-y-4">
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Code</label>
+                          <input type="text" value={newClass.classcode} onChange={(e) => setNewClass({...newClass, classcode: e.target.value})} className={inputStyle} placeholder="e.g. DSE-M3" required />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Name</label>
+                          <input type="text" value={newClass.classname} onChange={(e) => setNewClass({...newClass, classname: e.target.value})} className={inputStyle} placeholder="e.g. Software Engineering Cohort 3" required />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Major</label>
+                          <select value={newClass.majorid} onChange={(e) => setNewClass({...newClass, majorid: e.target.value})} className={inputStyle} required>
+                            <option value="">Select Major...</option>
+                            {majors.map(m => (
+                              <option key={m.majorid} value={m.majorid}>{m.majorname}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Academic Year</label>
+                            <input type="text" value={newClass.academicyear} onChange={(e) => setNewClass({...newClass, academicyear: e.target.value})} className={inputStyle} placeholder="2025-2026" required />
+                          </div>
+                          <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Semester</label>
+                            <input type="number" min="1" max="10" value={newClass.semester} onChange={(e) => setNewClass({...newClass, semester: e.target.value})} className={inputStyle} required />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-8">
+                          <button type="button" onClick={() => setShowCreateClassModal(false)} className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${subBg} ${textColor} hover:bg-gray-200 dark:hover:bg-gray-800`}>Cancel</button>
+                          <button type="submit" className={`px-5 py-2.5 rounded-xl font-semibold text-white transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-600 hover:bg-indigo-700'}`}>Create Class</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2543,7 +2858,7 @@ const AdminDashboard = ({ onLogout }) => {
                     <h3 className="font-bold text-lg">Biometric Hardware Endpoints</h3>
                     <p className={`text-xs ${mutedText} mt-1`}>Monitor the connection status of physical fingerprint scanners.</p>
                   </div>
-                  <button className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><i className="fas fa-plus mr-1"></i> Register Device</button>
+                  <button onClick={() => setShowRegisterDeviceModal(true)} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><i className="fas fa-plus mr-1"></i> Register Device</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {hardwareDevices.length === 0 ? (
@@ -2553,21 +2868,65 @@ const AdminDashboard = ({ onLogout }) => {
                       <div key={device.deviceid} className={`border rounded-xl p-5 flex flex-col justify-between ${borderSubColor} ${subBg}`}>
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <p className="font-bold text-lg">{device.devicename || `Device #${device.deviceid}`}</p>
+                            <p className="font-bold text-lg">{device.deviceName || device.devicename || `Device #${device.deviceid}`}</p>
                             <p className={`text-xs ${mutedText} mt-0.5`}><i className="fas fa-map-marker-alt mr-1"></i> {device.location || 'Main Entrance'}</p>
                           </div>
-                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded flex items-center gap-1.5 ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> ONLINE
+                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded flex items-center gap-1.5 ${device.online ? (isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700') : (isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700')}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${device.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span> {device.online ? 'ONLINE' : 'OFFLINE'}
                           </span>
                         </div>
                         <div className={`pt-4 border-t ${borderSubColor} flex justify-between text-xs`}>
-                          <span className={mutedText}>Last Sync: {device.lastseen ? new Date(device.lastseen).toLocaleTimeString() : 'Just now'}</span>
-                          <button className={`font-bold hover:underline ${brandColor}`}>Configure</button>
+                          <span className={mutedText}>Last Sync: {device.lastSync ? new Date(device.lastSync).toLocaleTimeString() : (device.lastseen ? new Date(device.lastseen).toLocaleTimeString() : 'Never')}</span>
+                          <button onClick={() => { setEditingDevice({ deviceid: device.deviceid, devicename: device.deviceName || device.devicename || '', location: device.location || '' }); setShowConfigureDeviceModal(true); }} className={`font-bold hover:underline ${brandColor}`}>Configure</button>
                         </div>
                       </div>
                     ))
                   )}
                 </div>
+
+                {showRegisterDeviceModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className={`${surfaceBg} rounded-3xl p-8 w-full max-w-md shadow-2xl border ${borderColor}`}>
+                      <h3 className={`text-xl font-bold mb-6 ${textColor}`}>Register New Scanner</h3>
+                      <form onSubmit={handleRegisterDeviceSubmit} className="space-y-4">
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Device Name / Model</label>
+                          <input type="text" value={newDevice.devicename} onChange={(e) => setNewDevice({...newDevice, devicename: e.target.value})} className={inputStyle} placeholder="e.g. AS608-Hallway" required />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Location</label>
+                          <input type="text" value={newDevice.location} onChange={(e) => setNewDevice({...newDevice, location: e.target.value})} className={inputStyle} placeholder="e.g. Main Entrance" required />
+                        </div>
+                        <div className="flex justify-end gap-3 mt-8">
+                          <button type="button" onClick={() => setShowRegisterDeviceModal(false)} className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${subBg} ${textColor} hover:bg-gray-200 dark:hover:bg-gray-800`}>Cancel</button>
+                          <button type="submit" className={`px-5 py-2.5 rounded-xl font-semibold text-white transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-600 hover:bg-indigo-700'}`}>Register Scanner</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {showConfigureDeviceModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className={`${surfaceBg} rounded-3xl p-8 w-full max-w-md shadow-2xl border ${borderColor}`}>
+                      <h3 className={`text-xl font-bold mb-6 ${textColor}`}>Configure Scanner</h3>
+                      <form onSubmit={handleConfigureDeviceSubmit} className="space-y-4">
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Device Name / Model</label>
+                          <input type="text" value={editingDevice.devicename} onChange={(e) => setEditingDevice({...editingDevice, devicename: e.target.value})} className={inputStyle} required />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Location</label>
+                          <input type="text" value={editingDevice.location} onChange={(e) => setEditingDevice({...editingDevice, location: e.target.value})} className={inputStyle} required />
+                        </div>
+                        <div className="flex justify-end gap-3 mt-8">
+                          <button type="button" onClick={() => setShowConfigureDeviceModal(false)} className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${subBg} ${textColor} hover:bg-gray-200 dark:hover:bg-gray-800`}>Cancel</button>
+                          <button type="submit" className={`px-5 py-2.5 rounded-xl font-semibold text-white transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-600 hover:bg-indigo-700'}`}>Save Changes</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2676,9 +3035,11 @@ const AdminDashboard = ({ onLogout }) => {
                 <div className="bg-[#181a1f] rounded-2xl overflow-hidden shadow-2xl flex flex-col h-full flex-1 min-h-[calc(100vh-150px)]">
                   {/* Console Header */}
                   <div className="bg-[#21252b] px-6 py-4 flex items-center justify-between border-b border-[#181a1f]">
-                    <div className="flex items-center gap-4">
-                      <button className="bg-[#3a3f4b] hover:bg-[#4b5162] text-white text-[12px] font-bold px-4 py-2 rounded-md transition">View All (36)</button>
-                      <button className="text-gray-400 hover:text-white text-[12px] font-bold transition">Refresh</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setActiveTerminalTab('log')} className={`${activeTerminalTab === 'log' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Log ({terminalLogs.filter(l => l.action !== 'SQL').length})</button>
+                      <button onClick={() => setActiveTerminalTab('query')} className={`${activeTerminalTab === 'query' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Query ({terminalLogs.filter(l => l.action === 'SQL').length})</button>
+                      <div className="w-px h-4 bg-gray-700 mx-2"></div>
+                      <button className="text-gray-400 hover:text-white text-[12px] font-bold px-2 py-1 transition">Refresh</button>
                     </div>
                     <div className="flex items-center gap-4 text-gray-500">
                       <Trash2 size={16} className="cursor-pointer hover:text-white transition" />
@@ -2689,35 +3050,33 @@ const AdminDashboard = ({ onLogout }) => {
                   
                   {/* Console Body */}
                   <div className="p-6 overflow-y-auto custom-scrollbar flex-1 font-mono text-[14px] leading-[1.5] flex flex-col tracking-tight select-text">
-                    {[
-                      { time:'8:34:58 AM', action:'DELETE_USER', msg:'User ID 16 deleted by Admin (Actor: him_vuthy)', color:'text-red-500' },
-                      { time:'8:47:58 AM', action:'UPDATE_ROLE', msg:'Role changed to Teacher by Admin (Actor: him_vuthy)', color:'text-yellow-500' },
-                      { time:'1:49:43 AM', action:'ADD_USER', msg:'New user registered via Phone: 887126 (Actor: 887126)', color:'text-green-500' },
-                      { time:'2:45:12 AM', action:'ADD_USER', msg:'New user registered via Phone: 416317 (Actor: gaylord)', color:'text-green-500' },
-                      { time:'9:16:50 AM', action:'RESET_PASSWORD', msg:'Password reset for User ID 20 (Actor: him_vuthy)', color:'text-yellow-500' },
-                      { time:'3:12:12 PM', action:'ADD_USER', msg:'New user registered via Google: 922630 (Actor: him_vuthy)', color:'text-green-500' },
-                      { time:'4:59:48 PM', action:'ADD_USER', msg:'New user registered: sigmaboy (Actor: sigma)', color:'text-green-500' },
-                      { time:'6:42:48 PM', action:'DELETE_USER', msg:'User him_vuthy deleted by Admin (Actor: him_vuthy)', color:'text-red-500' },
-                      { time:'8:10:41 PM', action:'DELETE_USER', msg:'User him_vuthy19 deleted by Admin (Actor: him_vuthy)', color:'text-red-500' },
-                      { time:'8:13:15 PM', action:'ADD_USER', msg:'New user registered via Phone: 125759 (Actor: System)', color:'text-green-500' },
-                      { time:'3:29:57 AM', action:'DELETE_USER', msg:'User 125759 deleted by Admin (Actor: him_vuthy)', color:'text-red-500' },
-                    ].map((log, i) => (
+                    {terminalLogs.filter(log => activeTerminalTab === 'query' ? log.action === 'SQL' : log.action !== 'SQL').map((log, i) => (
                       <div key={i} className={`${log.color} whitespace-pre-wrap`}>
                         [{log.time}] [{log.action}]: {log.msg}
                       </div>
                     ))}
+                    <div ref={terminalEndRef} />
                   </div>
 
                   {/* Input Bar */}
+                  {activeTerminalTab === 'query' && (
                   <div className="px-6 pb-6 pt-0">
                     <div className="bg-[#21252b] rounded-lg border border-[#3a3f4b] px-4 py-3 flex items-center justify-between group focus-within:border-[#528bff] transition-colors">
                       <div className="flex items-center gap-3 text-gray-500 text-[14px] w-full font-mono">
                         <span className="font-bold opacity-50">&gt;&gt;</span>
-                        <input type="text" placeholder="Type a command..." className="bg-transparent outline-none border-none flex-1 text-white placeholder-gray-600 focus:placeholder-gray-700" />
+                        <input 
+                          type="text" 
+                          placeholder="Type a SQL query to execute..." 
+                          value={terminalInput}
+                          onChange={(e) => setTerminalInput(e.target.value)}
+                          onKeyDown={handleTerminalSubmit}
+                          className="bg-transparent outline-none border-none flex-1 text-white placeholder-gray-600 focus:placeholder-gray-700" 
+                        />
                       </div>
                       <Clock size={16} className="text-gray-500 cursor-pointer hover:text-white transition shrink-0" />
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2761,7 +3120,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <span className={`flex items-center gap-2 text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}><CheckCircle2 size={15} />Enrolled and ready</span>
                         <span className={`text-[10px] ${mutedText}`}>Verified</span>
                       </div>
-                      <button className={`mt-3 w-full rounded-xl border py-2.5 text-xs font-bold transition ${isDark ? 'border-white/10 hover:border-[#60a5fa] hover:text-[#60a5fa]' : 'border-slate-200 hover:border-[#60a5fa] hover:text-[#2563eb]'}`}>View student profile</button>
+                      <button className={`mt-3 w-full rounded-xl border py-2.5 text-xs font-bold transition ${isDark ? 'border-white/10 hover:border-[#60a5fa] hover:text-[#60a5fa]' : 'border-[#e2e8f0] hover:border-[#60a5fa] hover:text-[#2563eb]'}`}>View student profile</button>
                     </section>
 
                     <section className={`${cardStyle} p-5`}>
@@ -2785,7 +3144,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <KeyRound size={16} className={isDark ? 'text-violet-300' : 'text-violet-500'} />
                         <div><p className="text-sm font-bold">Change password</p><p className={`mt-1 text-xs ${mutedText}`}>Use at least 8 characters and avoid reused passwords.</p></div>
                       </div>
-                      <button className={`rounded-xl border px-4 py-2 text-xs font-bold transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'}`}>Change password</button>
+                      <button className={`rounded-xl border px-4 py-2 text-xs font-bold transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-[#e2e8f0] hover:bg-slate-50'}`}>Change password</button>
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
@@ -2804,19 +3163,19 @@ const AdminDashboard = ({ onLogout }) => {
                       <div><p className="text-sm font-bold">Appearance</p><p className={`mt-1 text-xs ${mutedText}`}>Choose a bright campus-inspired theme.</p></div>
                       <div className="flex gap-2">
                         {[{ dark: false, label: 'Daylight', icon: Sun }, { dark: true, label: 'Soft sky', icon: Moon }].map(({ dark, label, icon }) => (
-                          <button key={label} onClick={() => setIsDark(dark)} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${isDark === dark ? 'border-[#60a5fa] bg-sky-50 text-sky-800 dark:bg-sky-400/10 dark:text-sky-300' : `border-slate-200 text-slate-600 hover:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-400' : ''}`}`}>{React.createElement(icon, { size: 15 })}{label}</button>
+                          <button key={label} onClick={() => setIsDark(dark)} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${isDark === dark ? 'border-[#60a5fa] bg-sky-50 text-sky-800 dark:bg-sky-400/10 dark:text-sky-300' : `border-[#e2e8f0] text-slate-600 hover:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-400' : ''}`}`}>{React.createElement(icon, { size: 15 })}{label}</button>
                         ))}
                       </div>
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Class reminder time</p><p className={`mt-1 text-xs ${mutedText}`}>When should the portal remind you about your next class?</p></div>
-                      <select value={adminSettings.reminderTime} onChange={(event) => updateSetting('reminderTime', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-slate-200 text-slate-700'}`}>
+                      <select value={adminSettings.reminderTime} onChange={(event) => updateSetting('reminderTime', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-[#e2e8f0] text-slate-700'}`}>
                         {['5 minutes before', '15 minutes before', '30 minutes before', '1 hour before'].map((value) => <option key={value}>{value}</option>)}
                       </select>
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Language</p><p className={`mt-1 text-xs ${mutedText}`}>Choose your preferred dashboard language.</p></div>
-                      <select value={adminSettings.language} onChange={(event) => updateSetting('language', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-slate-200 text-slate-700'}`}>
+                      <select value={adminSettings.language} onChange={(event) => updateSetting('language', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-[#e2e8f0] text-slate-700'}`}>
                         <option>English</option><option>Khmer</option>
                       </select>
                     </div>
