@@ -1,6 +1,7 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const http = require('http');
+const https = require('https');
 
 // Configuration
 const ARDUINO_PORT = 'COM6'; // <-- Change this to your Arduino's COM port (e.g., COM3, /dev/ttyUSB0)
@@ -27,8 +28,8 @@ port.on('open', () => {
   setInterval(() => {
     const payload = JSON.stringify({ deviceName: 'AS608-Serial', location: 'Lab 1' });
     const options = {
-      hostname: 'localhost',
-      port: 3000,
+      hostname: 'smart-student-attendance-system-nkka.onrender.com',
+      port: 443,
       path: '/api/hardware/heartbeat',
       method: 'POST',
       headers: {
@@ -36,7 +37,7 @@ port.on('open', () => {
         'Content-Length': Buffer.byteLength(payload)
       }
     };
-    const req = http.request(options, (res) => {});
+    const req = https.request(options, (res) => {});
     req.on('error', (e) => {}); // Silent fail if server offline
     req.write(payload);
     req.end();
@@ -74,8 +75,8 @@ process.stdin.on('data', (data) => {
 const sendPostRequest = (endpoint, data) => {
   const payload = JSON.stringify(data);
   const options = {
-    hostname: 'localhost',
-    port: 3000,
+    hostname: 'smart-student-attendance-system-nkka.onrender.com',
+    port: 443,
     path: `/api/hardware/${endpoint}`,
     method: 'POST',
     headers: {
@@ -84,7 +85,7 @@ const sendPostRequest = (endpoint, data) => {
     }
   };
 
-  const req = http.request(options, (res) => {
+  const req = https.request(options, (res) => {
     let responseData = '';
     res.on('data', (chunk) => responseData += chunk);
     res.on('end', () => {
