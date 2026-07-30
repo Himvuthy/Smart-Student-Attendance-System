@@ -94,13 +94,15 @@ app.get('/api/admin/dashboard', async (req, res) => {
     const enrollment = parseInt(bioRes.rows[0].count);
     const pendingEnrollment = totalStudents - enrollment;
 
-    // Attendance Breakdown
+    // Attendance Breakdown for Today
     const totalsRes = await pool.query(`
       SELECT 
-        COUNT(CASE WHEN status = 'Present' THEN 1 END) as present,
-        COUNT(CASE WHEN status = 'Late' THEN 1 END) as late,
-        COUNT(CASE WHEN status = 'Absent' THEN 1 END) as absent
-      FROM attendance
+        COUNT(CASE WHEN a.status = 'Present' THEN 1 END) as present,
+        COUNT(CASE WHEN a.status = 'Late' THEN 1 END) as late,
+        COUNT(CASE WHEN a.status = 'Absent' THEN 1 END) as absent
+      FROM attendance a
+      JOIN session s ON a.sessionid = s.sessionid
+      WHERE s.sessiondate = CURRENT_DATE
     `);
     const presentCount = parseInt(totalsRes.rows[0].present) || 0;
     const lateCount = parseInt(totalsRes.rows[0].late) || 0;
