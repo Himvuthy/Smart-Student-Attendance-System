@@ -601,6 +601,7 @@ const AdminDashboard = ({ onLogout }) => {
   };
   
   const [selectedClass, setSelectedClass] = useState(null);
+  const [targetEnrollClass, setTargetEnrollClass] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [isSchedulesLoading, setIsSchedulesLoading] = useState(false);
   
@@ -1037,7 +1038,8 @@ const AdminDashboard = ({ onLogout }) => {
   const openAddStudentModal = async (cls = null) => {
     const targetClass = cls || selectedClass;
     if (!targetClass) return;
-    if (cls) setSelectedClass(cls);
+    
+    setTargetEnrollClass(targetClass);
 
     try {
       const res = await fetch(`${baseUrl}/api/classes/${targetClass.classid}/unenrolled-students`);
@@ -1069,7 +1071,10 @@ const AdminDashboard = ({ onLogout }) => {
     }
     
     try {
-      const res = await fetch(`${baseUrl}/api/classes/${selectedClass.classid}/enroll`, {
+      const classToEnroll = targetEnrollClass || selectedClass;
+      if (!classToEnroll) return;
+      
+      const res = await fetch(`${baseUrl}/api/classes/${classToEnroll.classid}/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentid: studentIdToEnroll })
@@ -1092,8 +1097,8 @@ const AdminDashboard = ({ onLogout }) => {
       if (newData && selectedSchedule && dataCache.current.attendance[selectedSchedule.scheduleid]) {
          dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
       }
-      setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Enrolled student ID ${studentIdToEnroll} into class ID ${selectedClass.classid}`, color: 'text-green-400' }]);
-      setClasses(prev => prev.map(c => c.classid === selectedClass.classid ? { ...c, student_count: (parseInt(c.student_count) || 0) + 1 } : c));
+      setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Enrolled student ID ${studentIdToEnroll} into class ID ${classToEnroll.classid}`, color: 'text-green-400' }]);
+      setClasses(prev => prev.map(c => c.classid === classToEnroll.classid ? { ...c, student_count: (parseInt(c.student_count) || 0) + 1 } : c));
       setEnrollSearchQuery(''); // reset
     } catch (e) {
       console.error(e);
@@ -2887,7 +2892,7 @@ const AdminDashboard = ({ onLogout }) => {
                             <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
                               <button 
                                 onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-900 hover:bg-black'}`}
                               >
                                 Edit
                               </button>
