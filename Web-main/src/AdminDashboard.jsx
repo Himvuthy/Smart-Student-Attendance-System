@@ -3307,6 +3307,7 @@ const AdminDashboard = ({ onLogout }) => {
                       </button>
                     </div>
                   ))}
+                  </div>
                 </div>
               )}
             </div>
