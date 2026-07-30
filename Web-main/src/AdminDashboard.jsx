@@ -1007,9 +1007,13 @@ const AdminDashboard = ({ onLogout }) => {
     setIsSavingAttendance(false);
   };
 
-  const openAddStudentModal = async () => {
+  const openAddStudentModal = async (cls = null) => {
+    const targetClass = cls || selectedClass;
+    if (!targetClass) return;
+    if (cls) setSelectedClass(cls);
+
     try {
-      const res = await fetch(`${baseUrl}/api/classes/${selectedClass.classid}/unenrolled-students`);
+      const res = await fetch(`${baseUrl}/api/classes/${targetClass.classid}/unenrolled-students`);
       const data = await res.json();
       setUnenrolledStudents(data);
       setShowAddStudentModal(true);
@@ -1023,15 +1027,16 @@ const AdminDashboard = ({ onLogout }) => {
     if (!studentIdToEnroll || studentIdToEnroll.trim() === '') return;
     
     const studentObj = unenrolledStudents.find(s => s.studentid === studentIdToEnroll);
-    const previousAttendanceData = { ...attendanceData };
+    const previousAttendanceData = attendanceData ? { ...attendanceData } : null;
     let newData = null;
     
-    if (studentObj && attendanceData) {
-      // OPTIMISTIC RENDER
-      newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
-      newData.students.push({ studentid: studentObj.studentid, fullname: studentObj.fullname, profilepicture: studentObj.profilepicture });
-      newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
-      setAttendanceData(newData);
+    if (studentObj) {
+      if (attendanceData) {
+        newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
+        newData.students.push({ studentid: studentObj.studentid, fullname: studentObj.fullname, profilepicture: studentObj.profilepicture });
+        newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
+        setAttendanceData(newData);
+      }
       setUnenrolledStudents(prev => prev.filter(s => s.studentid !== studentIdToEnroll));
       setShowAddStudentModal(false);
     }
@@ -1048,25 +1053,26 @@ const AdminDashboard = ({ onLogout }) => {
       
       if (!studentObj) {
         const student = responseData.student;
-        newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
-        newData.students.push({ studentid: student.studentid, fullname: student.fullname, profilepicture: student.profilepicture });
-        newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
-        setAttendanceData(newData);
+        if (attendanceData) {
+          newData = { ...attendanceData, students: [...(attendanceData.students || [])] };
+          newData.students.push({ studentid: student.studentid, fullname: student.fullname, profilepicture: student.profilepicture });
+          newData.students.sort((a,b) => a.fullname.localeCompare(b.fullname));
+          setAttendanceData(newData);
+        }
         setShowAddStudentModal(false);
       }
       
-      if (newData && dataCache.current.attendance[selectedSchedule.scheduleid]) {
+      if (newData && selectedSchedule && dataCache.current.attendance[selectedSchedule.scheduleid]) {
          dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
       }
       setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Enrolled student ID ${studentIdToEnroll} into class ID ${selectedClass.classid}`, color: 'text-green-400' }]);
+      setClasses(prev => prev.map(c => c.classid === selectedClass.classid ? { ...c, student_count: (parseInt(c.student_count) || 0) + 1 } : c));
       setEnrollSearchQuery(''); // reset
     } catch (e) {
       console.error(e);
       alert('Failed to enroll student, changes reverted.');
-      if (studentObj && attendanceData) {
-        setAttendanceData(previousAttendanceData); // Rollback
-        setUnenrolledStudents(prev => [...prev, studentObj]); // Put back
-      }
+      if (studentObj && attendanceData) setAttendanceData(previousAttendanceData);
+      if (studentObj) setUnenrolledStudents(prev => [...prev, studentObj]);
     }
   };
 
@@ -2852,12 +2858,20 @@ const AdminDashboard = ({ onLogout }) => {
                               <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
                             </div>
                             <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
-                                className={`text-xs font-bold hover:underline ${mutedText}`}
-                              >
-                                Edit
-                              </button>
+                              <div className="flex gap-4">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
+                                  className={`text-xs font-bold hover:underline ${mutedText}`}
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
+                                  className={`text-xs font-bold hover:underline ${brandColor}`}
+                                >
+                                  Enroll Student
+                                </button>
+                              </div>
                               <button className={`text-xs font-bold hover:underline ${brandColor}`}>View Schedules</button>
                             </div>
                           </div>
