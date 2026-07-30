@@ -2858,21 +2858,18 @@ const AdminDashboard = ({ onLogout }) => {
                               <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
                             </div>
                             <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
-                              <div className="flex gap-2">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
-                                >
-                                  Enroll Student
-                                </button>
-                              </div>
-                              <button className={`text-xs font-bold hover:underline ${brandColor}`}>View Schedules</button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                              >
+                                Enroll Student
+                              </button>
                             </div>
                           </div>
                         ))}
