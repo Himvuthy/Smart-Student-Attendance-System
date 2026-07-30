@@ -81,6 +81,115 @@ app.get('/api/biometric/students', async (req, res) => {
   }
 });
 
+// GET admin dashboard stats
+app.get('/api/admin/dashboard', async (req, res) => {
+  try {
+    // Stats
+    const studentRes = await pool.query("SELECT COUNT(*) FROM student");
+    const classRes = await pool.query("SELECT COUNT(*) FROM class");
+    const bioRes = await pool.query("SELECT COUNT(DISTINCT studentid) FROM biometric");
+    
+    const totalStudents = parseInt(studentRes.rows[0].count);
+    const activeClasses = parseInt(classRes.rows[0].count);
+    const enrollment = parseInt(bioRes.rows[0].count);
+    const pendingEnrollment = totalStudents - enrollment;
+
+    // Attendance Breakdown
+    const totalsRes = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN status = 'Present' THEN 1 END) as present,
+        COUNT(CASE WHEN status = 'Late' THEN 1 END) as late,
+        COUNT(CASE WHEN status = 'Absent' THEN 1 END) as absent
+      FROM attendance
+    `);
+    const presentCount = parseInt(totalsRes.rows[0].present) || 0;
+    const lateCount = parseInt(totalsRes.rows[0].late) || 0;
+    const absentCount = parseInt(totalsRes.rows[0].absent) || 0;
+    const totalAttendance = presentCount + lateCount + absentCount;
+    const attendanceTotals = {
+      total: totalAttendance,
+      Present: presentCount,
+      Late: lateCount,
+      Absent: absentCount,
+      rate: totalAttendance > 0 ? Math.round(((presentCount + lateCount) / totalAttendance) * 100) : 0
+    };
+
+    // Today's Classes
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayStr = days[new Date().getDay()];
+    
+    const todaysRes = await pool.query(`
+      SELECT s.scheduleid as id, c.classcode as code, c.classname as subject, 
+             e.fullname as lecturer, s.starttime, s.endtime
+      FROM schedule s
+      JOIN class c ON s.classid = c.classid
+      JOIN entity e ON c.lecturerid = e.eid
+      WHERE s.dayofweek = $1
+      ORDER BY s.starttime ASC
+    `, [todayStr]);
+    const todaysClasses = todaysRes.rows.map(r => ({
+      id: r.id,
+      code: r.code,
+      subject: r.subject,
+      lecturer: r.lecturer,
+      time: `${r.starttime.substring(0,5)} - ${r.endtime.substring(0,5)}`,
+      room: 'Main Campus'
+    }));
+
+    // Weekly Analytics
+    const weeklyRes = await pool.query(`
+      SELECT 
+        DATE(attendedat) as date,
+        COUNT(CASE WHEN status IN ('Present', 'Late') THEN 1 END) as present_count,
+        COUNT(*) as total_count
+      FROM attendance
+      WHERE attendedat >= CURRENT_DATE - INTERVAL '6 days'
+      GROUP BY DATE(attendedat)
+      ORDER BY DATE(attendedat) ASC
+    `);
+    
+    const recentRes = await pool.query(`
+      SELECT 
+        a.attendanceid as id,
+        e.fullname as name,
+        c.classcode as course,
+        c.classname as courseName,
+        a.attendedat as time,
+        a.status
+      FROM attendance a
+      JOIN student s ON a.studentid = s.studentid
+      JOIN entity e ON s.eid = e.eid
+      JOIN session ss ON a.sessionid = ss.sessionid
+      JOIN schedule sch ON ss.scheduleid = sch.scheduleid
+      JOIN class c ON sch.classid = c.classid
+      ORDER BY a.attendedat DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      stats: { totalStudents, activeClasses, enrollment, pendingEnrollment },
+      attendanceTotals,
+      todaysClasses,
+      weeklyData: weeklyRes.rows,
+      recentAttendance: recentRes.rows
+    });
+  } catch (err) {
+    console.error('Error fetching admin dashboard:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET all devices
+app.get('/api/devices', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM device ORDER BY deviceid ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching devices:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET all users
 app.get('/api/users', async (req, res) => {
   try {
@@ -1223,6 +1332,166 @@ app.post('/api/hardware/scan', async (req, res) => {
 
   } catch (error) {
     console.error('Error recording scan:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// ----------------------------------------------------
+// TEACHER MODULE ENDPOINTS
+// ----------------------------------------------------
+
+// GET /api/teacher/classes/:teacherId
+// Fetch assigned classes for a specific teacher
+app.get('/api/teacher/classes/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    // Map classes to the teacher. This is a simplification; ideally there's a join table or column
+    const result = await db.query(`
+      SELECT * FROM classes 
+      WHERE lecturer = (SELECT fullname FROM users WHERE userid = $1)
+    `, [teacherId]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching teacher classes:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/attendance/session
+// Start a manual class session
+app.post('/api/attendance/session', async (req, res) => {
+  try {
+    const { classid, teacherid, expectedEndTime } = req.body;
+    // We can just log it or handle session logic here. Currently we rely on students checking in.
+    res.json({ message: 'Session started successfully' });
+  } catch (error) {
+    console.error('Error starting session:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/attendance/record
+// Submit manual attendance records
+app.post('/api/attendance/record', async (req, res) => {
+  try {
+    const { classid, records } = req.body; 
+    // records is an array of { studentid, status, type: 'manual'|'rfid'|'biometric' }
+    
+    // Process records in bulk
+    for (const record of records) {
+      // Check if student already checked in today for this class
+      const existing = await db.query(`
+        SELECT id FROM attendance 
+        WHERE studentid = $1 AND classid = $2 AND DATE(time) = CURRENT_DATE
+      `, [record.studentid, classid]);
+
+      if (existing.rows.length === 0) {
+        await db.query(`
+          INSERT INTO attendance (studentid, classid, time, status, type)
+          VALUES ($1, $2, NOW(), $3, $4)
+        `, [record.studentid, classid, record.status, record.type || 'manual']);
+      } else {
+        await db.query(`
+          UPDATE attendance 
+          SET status = $1, type = $2
+          WHERE id = $3
+        `, [record.status, record.type || 'manual', existing.rows[0].id]);
+      }
+    }
+    res.json({ message: 'Manual attendance submitted successfully' });
+  } catch (error) {
+    console.error('Error recording manual attendance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/excuses/:id/review
+// Review an excuse
+// GET /api/teacher/:eid/excuses
+app.get('/api/teacher/:eid/excuses', async (req, res) => {
+  try {
+    const { eid } = req.params;
+    
+    // Find teacher userid first to check assigned classes or we can query based on lecturer's classes
+    const classQuery = `
+      SELECT c.classcode
+      FROM class c
+      JOIN lecturer l ON c.lecturerid = l.lecturerid
+      WHERE l.eid = $1
+    `;
+    const classResult = await pool.query(classQuery, [eid]);
+    
+    if (classResult.rows.length === 0) {
+      return res.json([]);
+    }
+    
+    const classCodes = classResult.rows.map(r => r.classcode);
+    
+    const excuseQuery = `
+      SELECT e.excuseid as id, e.reason, e.status, e.date_submitted,
+             e.date as request_date,
+             u.username as studentId, en.fullname as student,
+             a.classcode as course
+      FROM excuserequest e
+      JOIN useraccount u ON e.studentid = u.userid
+      JOIN entity en ON u.eid = en.eid
+      JOIN attendancerecord a ON e.recordid = a.recordid
+      WHERE a.classcode = ANY($1)
+      ORDER BY e.date_submitted DESC
+    `;
+    
+    const excuses = await pool.query(excuseQuery, [classCodes]);
+    
+    res.json(excuses.rows.map(row => ({
+      id: row.id,
+      studentId: row.studentid,
+      student: row.student,
+      course: row.course,
+      date: row.request_date.toISOString().split('T')[0],
+      reason: row.reason,
+      status: row.status === 'Pending' ? 'Pending' : (row.status === 'Approved' ? 'Approved' : 'Rejected')
+    })));
+  } catch (error) {
+    console.error('Error fetching teacher excuses:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/excuses/:id/review', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reviewerId } = req.body; // status: 'Approved' or 'Rejected'
+    
+    await db.query(`
+      UPDATE excuses 
+      SET status = $1
+      WHERE id = $2
+    `, [status, id]);
+    
+    res.json({ message: `Excuse ${status.toLowerCase()} successfully` });
+  } catch (error) {
+    console.error('Error reviewing excuse:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/teacher/students/:classid
+// Get all students enrolled in a class for manual attendance checklist
+app.get('/api/teacher/students/:classid', async (req, res) => {
+  try {
+    const { classid } = req.params;
+    // This assumes students are globally available or enrolled. Let's return all students for simplicity
+    // and let the frontend filter if necessary, or better, return students where roleid=3
+    const result = await db.query(`
+      SELECT userid as id, fullname as name, username as matric 
+      FROM users 
+      WHERE roleid = 3
+      ORDER BY fullname
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

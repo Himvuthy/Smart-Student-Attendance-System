@@ -11,6 +11,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const baseUrl = API_BASE.replace(/\/$/, '');
+
+
 const AdminDashboard = ({ onLogout }) => {
   // --- UI STATES ---
   const [activeView, setActiveView] = useState(() => {
@@ -70,13 +74,37 @@ const AdminDashboard = ({ onLogout }) => {
     trackingLogs: {}
   });
 
-  // --- MOCK DATA (no database) ---
-  const stats = {
-    totalStudents: '1430',
-    activeClasses: '32',
-    presentToday: '1144',
-    absentToday: '286'
+  const [adminDashboardData, setAdminDashboardData] = useState({
+    stats: { totalStudents: 0, activeClasses: 0, enrollment: 0, pendingEnrollment: 0 },
+    attendanceTotals: { total: 0, Present: 0, Late: 0, Absent: 0, rate: 0 },
+    todaysClasses: [],
+    weeklyData: [],
+    recentAttendance: []
+  });
+  const [isAdminDashLoading, setIsAdminDashLoading] = useState(false);
+
+  const fetchAdminDashboard = async () => {
+    try {
+      setIsAdminDashLoading(true);
+      
+      const res = await fetch(`${baseUrl}/api/admin/dashboard`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdminDashboardData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch admin dashboard", err);
+    } finally {
+      setIsAdminDashLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (activeView === 'dashboard') {
+      fetchAdminDashboard();
+    }
+  }, [activeView]);
+
   const isLoading = false;
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [biometricStudents, setBiometricStudents] = useState([]);
@@ -94,7 +122,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsUsersLoading(true);
     }
     try {
-      const res = await fetch('http://localhost:3000/api/users');
+      const res = await fetch(`${baseUrl}/api/users`);
       const data = await res.json();
       const formatted = data.map(u => ({
         id: u.userid,
@@ -133,7 +161,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsEntitiesLoading(true);
     }
     try {
-      const res = await fetch('http://localhost:3000/api/entities');
+      const res = await fetch(`${baseUrl}/api/entities`);
       if (res.ok) {
         const data = await res.json();
         setEntities(data);
@@ -152,7 +180,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsBiometricLoading(true);
     }
     try {
-      const res = await fetch('http://localhost:3000/api/biometric/students');
+      const res = await fetch(`${baseUrl}/api/biometric/students`);
       if (res.ok) {
         const data = await res.json();
         setBiometricStudents(data);
@@ -166,7 +194,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const fetchHardwareDevices = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/devices');
+      const res = await fetch(`${baseUrl}/api/devices`);
       if (res.ok) {
         const data = await res.json();
         setHardwareDevices(data);
@@ -205,7 +233,7 @@ const AdminDashboard = ({ onLogout }) => {
     setNewUser({ fullname: '', username: '', email: '', password: '', roleid: 3 });
 
     try {
-      const res = await fetch('http://localhost:3000/api/users', {
+      const res = await fetch(`${baseUrl}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(optimisticUser)
@@ -250,7 +278,7 @@ const AdminDashboard = ({ onLogout }) => {
     setNewEntity({ fullname: '', username: '', email: '', password: '', roleid: 3, gender: 'Male', dateofbirth: '', phonenumber: '' });
 
     try {
-      const url = isEdit ? `http://localhost:3000/api/entities/${tempEid}` : 'http://localhost:3000/api/entities';
+      const url = isEdit ? `${baseUrl}/api/entities/${tempEid}` : `${baseUrl}/api/entities`;
       const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -276,7 +304,7 @@ const AdminDashboard = ({ onLogout }) => {
     setEntities(prev => prev.filter(e => e.eid !== eid)); // OPTIMISTIC
     
     try {
-      const res = await fetch(`http://localhost:3000/api/entities/${eid}`, { method: 'DELETE' });
+      const res = await fetch(`${baseUrl}/api/entities/${eid}`, { method: 'DELETE' });
       if (res.ok) {
         fetchEntities();
       } else {
@@ -304,7 +332,7 @@ const AdminDashboard = ({ onLogout }) => {
     setUsers(users.filter(user => user.id !== userId)); // Optimistic UI
     
     try {
-      const res = await fetch(`http://localhost:3000/api/users/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`${baseUrl}/api/users/${userId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete user');
       fetchUsers();
     } catch (error) {
@@ -322,7 +350,7 @@ const AdminDashboard = ({ onLogout }) => {
     setUsers(users.map(user => user.id === userId ? { ...user, name: newName } : user)); // Optimistic UI
     
     try {
-      const res = await fetch(`http://localhost:3000/api/users/${userId}`, {
+      const res = await fetch(`${baseUrl}/api/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName })
@@ -372,7 +400,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsClassesLoading(true);
     }
     try {
-      const res = await fetch('http://localhost:3000/api/classes');
+      const res = await fetch(`${baseUrl}/api/classes`);
       const data = await res.json();
       setClasses(data);
       dataCache.current.classes = data;
@@ -393,7 +421,7 @@ const AdminDashboard = ({ onLogout }) => {
     setSelectedTimetableClass(cls);
     setIsTimetableLoading(true);
     try {
-      const res = await fetch(`http://localhost:3000/api/classes/${cls.classid}/schedules`);
+      const res = await fetch(`${baseUrl}/api/classes/${cls.classid}/schedules`);
       const data = await res.json();
       setTimetableSchedules(data);
     } catch (error) {
@@ -426,7 +454,7 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       if (editingSchedule) {
         // Edit
-        const res = await fetch(`http://localhost:3000/api/schedules/${editingSchedule.scheduleid}`, {
+        const res = await fetch(`${baseUrl}/api/schedules/${editingSchedule.scheduleid}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(scheduleFormData)
@@ -435,7 +463,7 @@ const AdminDashboard = ({ onLogout }) => {
         setTimetableSchedules(prev => prev.map(s => s.scheduleid === updatedSched.scheduleid ? updatedSched : s));
       } else {
         // Add
-        const res = await fetch(`http://localhost:3000/api/classes/${selectedTimetableClass.classid}/schedules`, {
+        const res = await fetch(`${baseUrl}/api/classes/${selectedTimetableClass.classid}/schedules`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(scheduleFormData)
@@ -453,7 +481,7 @@ const AdminDashboard = ({ onLogout }) => {
   const handleDeleteSchedule = async (scheduleid) => {
     if (!window.confirm("Are you sure you want to delete this schedule?")) return;
     try {
-      await fetch(`http://localhost:3000/api/schedules/${scheduleid}`, {
+      await fetch(`${baseUrl}/api/schedules/${scheduleid}`, {
         method: 'DELETE'
       });
       setTimetableSchedules(prev => prev.filter(s => s.scheduleid !== scheduleid));
@@ -470,7 +498,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch('http://localhost:3000/api/attendance-tracking/classes');
+      const res = await fetch(`${baseUrl}/api/attendance-tracking/classes`);
       const data = await res.json();
       setTrackingClasses(data);
       dataCache.current.trackingClasses = data;
@@ -488,7 +516,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch(`http://localhost:3000/api/attendance-tracking/classes/${classid}/sessions`);
+      const res = await fetch(`${baseUrl}/api/attendance-tracking/classes/${classid}/sessions`);
       const data = await res.json();
       setTrackingSessions(data);
       dataCache.current.trackingSessions[classid] = data;
@@ -507,7 +535,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch(`http://localhost:3000/api/attendance-tracking/sessions/${sessionid}/log`);
+      const res = await fetch(`${baseUrl}/api/attendance-tracking/sessions/${sessionid}/log`);
       const data = await res.json();
       setTrackingLogs(data);
       dataCache.current.trackingLogs[sessionid] = data;
@@ -536,7 +564,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsSchedulesLoading(true);
     }
     try {
-      const res = await fetch(`http://localhost:3000/api/classes/${cls.classid}/schedules`);
+      const res = await fetch(`${baseUrl}/api/classes/${cls.classid}/schedules`);
       const data = await res.json();
       setSchedules(data);
       dataCache.current.schedules[cls.classid] = data;
@@ -554,7 +582,7 @@ const AdminDashboard = ({ onLogout }) => {
       setIsAttendanceLoading(true);
     }
     try {
-      const res = await fetch(`http://localhost:3000/api/schedules/${sched.scheduleid}/attendance`);
+      const res = await fetch(`${baseUrl}/api/schedules/${sched.scheduleid}/attendance`);
       const data = await res.json();
       setAttendanceData(data);
       dataCache.current.attendance[sched.scheduleid] = data;
@@ -614,7 +642,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const handleGenerateReport = async (format) => {
     try {
-      const res = await fetch('http://localhost:3000/api/reports/attendance');
+      const res = await fetch(`${baseUrl}/api/reports/attendance`);
       if (!res.ok) throw new Error('Failed to fetch report data');
       const data = await res.json();
       
@@ -710,7 +738,7 @@ const AdminDashboard = ({ onLogout }) => {
     
     setIsSavingAttendance(true);
     try {
-      const res = await fetch('/api/attendance/bulk', {
+      const res = await fetch(`${baseUrl}/api/attendance/bulk`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates })
@@ -732,7 +760,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const openAddStudentModal = async () => {
     try {
-      const res = await fetch(`/api/classes/${selectedClass.classid}/unenrolled-students`);
+      const res = await fetch(`${baseUrl}/api/classes/${selectedClass.classid}/unenrolled-students`);
       const data = await res.json();
       setUnenrolledStudents(data);
       setShowAddStudentModal(true);
@@ -760,7 +788,7 @@ const AdminDashboard = ({ onLogout }) => {
     }
     
     try {
-      const res = await fetch(`/api/classes/${selectedClass.classid}/enroll`, {
+      const res = await fetch(`${baseUrl}/api/classes/${selectedClass.classid}/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentid: studentIdToEnroll })
@@ -990,10 +1018,20 @@ const AdminDashboard = ({ onLogout }) => {
           id="main-scroll-container"
           className={`flex-1 overflow-y-auto px-6 pt-6 pb-6 ${appBg} transition-colors duration-500`}
           onScroll={(e) => {
+            const currentScrollY = e.target.scrollTop;
+            let searchContainerId, stickyZoneId;
+
             if (activeView === 'entities') {
-              const currentScrollY = e.target.scrollTop;
-              const searchContainer = document.getElementById('entity-search-container');
-              const stickyZone = document.getElementById('entity-sticky-zone');
+              searchContainerId = 'entity-search-container';
+              stickyZoneId = 'entity-sticky-zone';
+            } else if (activeView === 'attendance') {
+              searchContainerId = 'attendance-search-container';
+              stickyZoneId = 'attendance-sticky-zone';
+            }
+
+            if (searchContainerId && stickyZoneId) {
+              const searchContainer = document.getElementById(searchContainerId);
+              const stickyZone = document.getElementById(stickyZoneId);
               if (!searchContainer || !stickyZone) return;
               
               const lastScrollY = parseInt(searchContainer.dataset.lastScroll || '0', 10);
@@ -1037,116 +1075,158 @@ const AdminDashboard = ({ onLogout }) => {
                       <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Total Students</p>
                       <Users className={`w-4 h-4 text-gray-400`} />
                     </div>
-                    <p className="text-4xl font-extrabold text-gray-900">{stats.totalStudents}</p>
+                    <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{adminDashboardData.stats.totalStudents}</p>
                   </div>
                   <div className={`${cardStyle} justify-center`}>
                     <div className="flex justify-between items-center mb-6">
                       <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Active Classes</p>
                       <BookOpen className={`w-4 h-4 text-gray-400`} />
                     </div>
-                    <p className="text-4xl font-extrabold text-gray-900">{stats.activeClasses}</p>
+                    <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{adminDashboardData.stats.activeClasses}</p>
                   </div>
                   <div className={`${cardStyle} justify-center`}>
                     <div className="flex justify-between items-center mb-6">
-                      <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Enrollment</p>
+                      <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Present</p>
                     </div>
-                    <p className="text-4xl font-extrabold text-[#22c55e]">{stats.presentToday}</p>
+                    <p className="text-4xl font-extrabold text-[#22c55e]">{adminDashboardData.attendanceTotals.Present}</p>
                   </div>
                   <div className={`${cardStyle} justify-center`}>
                     <div className="flex justify-between items-center mb-6">
-                      <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Pending Enrollment</p>
+                      <p className={`text-[10px] text-gray-500 font-bold uppercase tracking-widest`}>Absent</p>
                     </div>
-                    <p className="text-4xl font-extrabold text-[#ef4444]">{stats.absentToday}</p>
+                    <p className="text-4xl font-extrabold text-[#ef4444]">{adminDashboardData.attendanceTotals.Absent}</p>
                   </div>
                 </div>
 
-                <div className={`${cardStyle} mb-8`}>
-                  <div className="flex justify-between items-center mb-8">
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900">24-Week Attendance History</h3>
-                      <p className={`text-xs text-gray-500 mt-1`}>Overall attendance averages across all classes for the last 24 weeks.</p>
+                <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+                  <div className={`${cardStyle} overflow-hidden`}>
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 dark:text-white">Attendance Analytics</h3>
+                        <p className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400`}>Weekly system check-in performance</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="h-[240px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={[
-                          { name: '1', val: 500 }, { name: '2', val: 7800 }, { name: '3', val: 1800 }, { name: '4', val: 4500 }, { name: '5', val: 300 }, { name: '6', val: 4600 }, { name: '7', val: 1300 }, { name: '8', val: 4500 }, { name: '9', val: 3700 }, { name: '10', val: 100 }, { name: '11', val: 2600 }, { name: '12', val: 7100 }, { name: '13', val: 2100 }, { name: '14', val: 100 }, { name: '15', val: 3800 }, { name: '16', val: 1300 }, { name: '17', val: 4800 }, { name: '18', val: 6700 }, { name: '19', val: 1400 }, { name: '20', val: 1000 }, { name: '21', val: 6600 }, { name: '22', val: 7900 }, { name: '23', val: 2100 }, { name: '24', val: 5200 }
-                      ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{fontSize: 10, fill: '#6b7280'}} tickLine={true} axisLine={{stroke: '#e5e7eb'}} tickMargin={8} />
-                        <YAxis tick={{fontSize: 10, fill: '#6b7280'}} tickLine={false} axisLine={false} ticks={[0, 2000, 4000, 6000, 8000]} domain={[0, 8000]} />
-                        <Line type="linear" dataKey="val" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: 'white', stroke: '#8b5cf6' }} activeDot={{ r: 6 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                  <div className={`${cardStyle}`}>
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-bold text-[10px] text-gray-500 uppercase tracking-widest">Daily Chart</h3>
-                    </div>
-                    <div className="h-[160px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={[
-                            { name: '0', val: 0 }, { name: '1', val: 7 }, { name: '2', val: 1 }, { name: '3', val: 8 }, { name: '4', val: 7.5 }, { name: '5', val: 1.5 }, { name: '6', val: 2.2 }, { name: '7', val: 1 }, { name: '8', val: 5.5 }, { name: '9', val: 6.2 }
-                        ]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="name" tick={{fontSize: 9, fill: '#6b7280'}} tickMargin={5} axisLine={{stroke: '#e5e7eb'}} />
-                          <YAxis tick={{fontSize: 9, fill: '#6b7280'}} ticks={[0, 2, 4, 6, 8]} domain={[0, 8]} axisLine={false} tickLine={false} />
-                          <Line type="linear" dataKey="val" stroke="#8b5cf6" strokeWidth={1.5} dot={{ r: 2.5, fill: '#8b5cf6' }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className={`${cardStyle}`}>
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-bold text-[10px] text-gray-500 uppercase tracking-widest">Weekly Trend</h3>
-                    </div>
-                    <div className="h-[160px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={[
-                            { name: '0', val: 5.5 }, { name: '1', val: 7.5 }, { name: '2', val: 8 }, { name: '3', val: 7.8 }, { name: '4', val: 3.2 }, { name: '5', val: 2.5 }, { name: '6', val: 9.5 }, { name: '7', val: 4.5 }, { name: '8', val: 10 }, { name: '9', val: 4.5 }
-                        ]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="name" tick={{fontSize: 9, fill: '#6b7280'}} tickMargin={5} axisLine={{stroke: '#e5e7eb'}} />
-                          <YAxis tick={{fontSize: 9, fill: '#6b7280'}} ticks={[0, 3, 6, 9, 12]} domain={[0, 12]} axisLine={false} tickLine={false} />
-                          <Line type="linear" dataKey="val" stroke="#86efac" strokeWidth={1.5} dot={{ r: 2.5, fill: '#86efac' }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className={`${cardStyle}`}>
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-bold text-[10px] text-gray-500 uppercase tracking-widest">Today's Ratio</h3>
-                    </div>
-                    <div className="h-[160px] w-full flex items-center justify-center relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={[{ name: 'Present', value: 95 }, { name: 'Absent', value: 5 }]}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={65}
-                            outerRadius={90}
-                            startAngle={90}
-                            endAngle={-270}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            <Cell fill="#8b5cf6" />
-                            <Cell fill="#e5e7eb" />
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute inset-0 flex items-center justify-center flex-col pt-8">
-                        <span className="text-3xl font-extrabold text-gray-900">95%</span>
+                    <div className="p-5">
+                      <div className="relative h-64 pl-9">
+                        <div className="absolute inset-y-0 left-9 right-0 flex flex-col justify-between text-[10px] text-slate-400">
+                          {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-slate-100 dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
+                        </div>
+                        <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
+                          {adminDashboardData.weeklyData && adminDashboardData.weeklyData.length > 0 ? adminDashboardData.weeklyData.map((d, i) => {
+                            const v = d.total_count > 0 ? Math.round((d.present_count / d.total_count) * 100) : 0;
+                            const isToday = i === adminDashboardData.weeklyData.length - 1;
+                            const dateStr = new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' });
+                            return (
+                              <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                                <span className={`text-[10px] font-bold ${isToday ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : 'text-slate-500'}`}>{v}%</span>
+                                <div className={`w-full max-w-16 rounded-xl ${isToday ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v > 0 ? Math.max(v * 1.75, 4) : 0}px` }} />
+                                <span className={`text-xs font-medium text-slate-500`}>{dateStr}</span>
+                              </div>
+                            );
+                          }) : (
+                            <p className="text-sm text-gray-500 m-auto">No weekly data available</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+
+                  <div className="space-y-4">
+                    <div className={`${cardStyle} overflow-hidden`}>
+                      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                        <h3 className="font-extrabold text-gray-900 dark:text-white">Today's Classes</h3>
+                        <span className={`flex items-center gap-2 text-xs text-gray-500`}><span className="h-2 w-2 rounded-full bg-emerald-400" />{adminDashboardData.todaysClasses.length} sessions</span>
+                      </div>
+                      <div className="space-y-3 p-4 h-48 overflow-y-auto custom-scrollbar">
+                        {adminDashboardData.todaysClasses.length === 0 ? (
+                          <p className={`text-center text-sm text-gray-500 mt-10`}>No classes scheduled for today.</p>
+                        ) : adminDashboardData.todaysClasses.map((item, index) => (
+                          <div key={item.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/[0.04]">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-700 dark:bg-sky-400/15 dark:text-sky-300">{item.code.slice(0, 2)}</div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-extrabold text-gray-900 dark:text-white">{item.subject}</p>
+                              <p className={`truncate text-xs text-gray-500`}>{item.lecturer}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-black text-gray-900 dark:text-white">{item.time.split(' - ')[0]}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className={`${cardStyle} overflow-hidden`}>
+                      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                        <h3 className="font-extrabold text-gray-900 dark:text-white">Attendance Breakdown</h3>
+                        <Fingerprint size={18} className="text-gray-500" />
+                      </div>
+                      <div className="p-4">
+                        <div className="flex h-11 overflow-hidden rounded-lg">
+                          <div className="bg-sky-400 transition-all duration-500" style={{ width: `${adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Present / adminDashboardData.attendanceTotals.total) * 100) : 0}%` }} />
+                          <div className="bg-sky-200 transition-all duration-500" style={{ width: `${adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Late / adminDashboardData.attendanceTotals.total) * 100) : 0}%` }} />
+                          <div className="bg-slate-200 transition-all duration-500 dark:bg-white/10" style={{ width: `${adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Absent / adminDashboardData.attendanceTotals.total) * 100) : 0}%` }} />
+                        </div>
+                        <div className={`mt-3 flex flex-wrap gap-4 text-[11px] font-semibold text-gray-500`}>
+                          <span><b className="mr-1 text-sky-500">■</b>Present {adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Present / adminDashboardData.attendanceTotals.total) * 100) : 0}%</span>
+                          <span><b className="mr-1 text-sky-300">■</b>Late {adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Late / adminDashboardData.attendanceTotals.total) * 100) : 0}%</span>
+                          <span><b className="mr-1 text-slate-300">■</b>Absent {adminDashboardData.attendanceTotals.total > 0 ? Math.round((adminDashboardData.attendanceTotals.Absent / adminDashboardData.attendanceTotals.total) * 100) : 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={`${cardStyle} mt-4 overflow-hidden`}>
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                    <div>
+                      <h3 className="font-extrabold text-gray-900 dark:text-white">Recent Attendance</h3>
+                      <p className={`mt-0.5 text-xs text-gray-500`}>Latest system-wide check-ins</p>
+                    </div>
+                  </div>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                      <thead className="bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+                        <tr>
+                          <th className="px-6 py-3 font-semibold tracking-wider">Date & Time</th>
+                          <th className="px-6 py-3 font-semibold tracking-wider">Student</th>
+                          <th className="px-6 py-3 font-semibold tracking-wider">Course</th>
+                          <th className="px-6 py-3 font-semibold tracking-wider text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-white/10 bg-white dark:bg-transparent">
+                        {adminDashboardData.recentAttendance.length === 0 ? (
+                           <tr><td colSpan="4" className="text-center py-6">No recent check-ins found.</td></tr>
+                        ) : adminDashboardData.recentAttendance.map(record => (
+                          <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200 font-medium">
+                              {new Date(record.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200 font-medium">
+                              {record.name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex flex-col">
+                                <span className="font-medium text-gray-900 dark:text-gray-200">{record.course}</span>
+                                <span className="text-xs">{record.courseName}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                                record.status === 'Present' 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                                  : record.status === 'Late'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                              }`}>
+                                {record.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
               </div>
             )}
             
@@ -1267,26 +1347,28 @@ const AdminDashboard = ({ onLogout }) => {
                     {/* LEVEL 2: Sessions List */}
                     {trackingLevel === 'sessions' && (
                       <div className={`${cardStyle} !p-0 flex flex-col`}>
-                        <div className={`sticky top-0 z-20 rounded-t-3xl ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
-                          <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
-                            <div>
-                              <h3 className="font-extrabold text-[22px]">Attendance Tracking</h3>
-                              <p className={`${mutedText} mt-1 text-[13px] font-semibold`}>Viewing recent sessions for {selectedTrackingClass?.classname} ({selectedTrackingClass?.classcode})</p>
-                            </div>
-                            <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                              <div className="relative flex-1 sm:flex-initial">
-                                <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
-                                <input 
-                                  type="text" 
-                                  placeholder="Search subject or date..." 
-                                  value={sessionSearchQuery}
-                                  onChange={(e) => setSessionSearchQuery(e.target.value)}
-                                  className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
-                                />
+                        <div id="attendance-sticky-zone" className={`sticky -top-6 z-20 rounded-t-3xl transition-transform duration-300 ease-in-out ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                          <div id="attendance-search-container" className="transition-opacity duration-300 ease-in-out" style={{ opacity: 1 }}>
+                            <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                              <div>
+                                <h3 className="font-extrabold text-[22px]">Attendance Tracking</h3>
+                                <p className={`${mutedText} mt-1 text-[13px] font-semibold`}>Viewing recent sessions for {selectedTrackingClass?.classname} ({selectedTrackingClass?.classcode})</p>
                               </div>
-                              <button onClick={() => setTrackingLevel('classes')} className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
-                                <ChevronLeft size={16} /> Back
-                              </button>
+                              <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                                <div className="relative flex-1 sm:flex-initial">
+                                  <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Search subject or date..." 
+                                    value={sessionSearchQuery}
+                                    onChange={(e) => setSessionSearchQuery(e.target.value)}
+                                    className={`pl-10 pr-4 py-2 text-[13px] font-semibold border-2 rounded-full focus:outline-none transition-colors w-full sm:w-64 ${isDark ? 'bg-black border-white/10 text-white focus:border-cyan-400' : 'bg-white border-gray-100 text-gray-800 focus:border-indigo-500'}`} 
+                                  />
+                                </div>
+                                <button onClick={() => setTrackingLevel('classes')} className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors shadow-sm font-bold text-sm inline-flex items-center gap-2">
+                                  <ChevronLeft size={16} /> Back
+                                </button>
+                              </div>
                             </div>
                           </div>
                           <div className={`border-b-2 ${borderSubColor}`}>
@@ -1393,7 +1475,8 @@ const AdminDashboard = ({ onLogout }) => {
                       <div className="flex flex-col gap-6">
                         {/* Present/Late Table */}
                         <div className={`${cardStyle} !p-0 flex flex-col`}>
-                          <div className={`sticky top-0 z-20 rounded-t-3xl ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                        <div id="attendance-sticky-zone" className={`sticky -top-6 z-20 rounded-t-3xl transition-transform duration-300 ease-in-out ${isDark ? 'bg-[#111111]' : 'bg-white'}`}>
+                          <div id="attendance-search-container" className="transition-opacity duration-300 ease-in-out" style={{ opacity: 1 }}>
                             <div className={`px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
                               <div>
                                 <h3 className="font-extrabold text-[22px]">Attendance Tracking</h3>
@@ -1415,6 +1498,7 @@ const AdminDashboard = ({ onLogout }) => {
                                 </button>
                               </div>
                             </div>
+                          </div>
                             
                             <div className={`px-6 py-4 border-t border-b ${borderColor} flex justify-between items-center ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
                               <h3 className={`font-bold ${textColor}`}>Present & Late Students</h3>
@@ -1463,7 +1547,7 @@ const AdminDashboard = ({ onLogout }) => {
                                     <td className="px-4 py-3 font-bold truncate">{log.fullname}</td>
                                     <td className="px-4 py-3 font-bold truncate">{selectedTrackingClass?.classname || 'Unknown'}</td>
                                     <td className="px-4 py-3 font-bold text-gray-500 dark:text-gray-400">
-                                      {log.time_in ? log.time_in.substring(0, 5) : 'N/A'}
+                                      {log.attendedat ? new Date(log.attendedat).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                                     </td>
                                     <td className="px-4 py-3">
                                       <div className="flex items-center gap-2">
@@ -1472,7 +1556,7 @@ const AdminDashboard = ({ onLogout }) => {
                                         </span>
                                         {log.status === 'Late' && (
                                           <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            ({Math.round(log.minutes_late)} mins)
+                                            ({Math.round(log.minutelate || 0)} mins)
                                           </span>
                                         )}
                                       </div>
@@ -2639,7 +2723,7 @@ const AdminDashboard = ({ onLogout }) => {
             )}
 
             {activeView === 'settings' && (
-              <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+              <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
                 <div>
                   <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400">Preferences</p>
                   <h2 className={`text-2xl font-black tracking-tight ${textColor}`}>Settings</h2>
