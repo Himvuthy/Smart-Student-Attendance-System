@@ -102,7 +102,10 @@ const AdminDashboard = ({ onLogout }) => {
     language: 'English',
     timeRange: 'Daily',
     targetFilter: 'All Classes',
-    autoBackup: 'Daily (Midnight)'
+    autoBackup: 'Daily (Midnight)',
+    reportDate: new Date().toISOString().split('T')[0],
+    reportClassId: '',
+    reportStudentId: ''
   });
   
   const updateSetting = (key, value) => {
@@ -896,10 +899,31 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       const res = await fetch(`${baseUrl}/api/reports/attendance`);
       if (!res.ok) throw new Error('Failed to fetch report data');
-      const data = await res.json();
+      let data = await res.json();
+      
+      // Filter by Target
+      if (adminSettings.targetFilter === 'Specific Class' && adminSettings.reportClassId) {
+        data = data.filter(r => String(r.classid) === String(adminSettings.reportClassId));
+      } else if (adminSettings.targetFilter === 'Specific Student' && adminSettings.reportStudentId) {
+        const sid = adminSettings.reportStudentId.trim().toLowerCase();
+        data = data.filter(r => String(r.studentid).toLowerCase().includes(sid) || String(r.studentname).toLowerCase().includes(sid));
+      }
+
+      // Filter by Time Range
+      const now = new Date();
+      if (adminSettings.timeRange === 'Daily' && adminSettings.reportDate) {
+        const selectedDateStr = new Date(adminSettings.reportDate).toLocaleDateString();
+        data = data.filter(r => new Date(r.sessiondate).toLocaleDateString() === selectedDateStr);
+      } else if (adminSettings.timeRange === 'Weekly') {
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        data = data.filter(r => new Date(r.sessiondate) >= oneWeekAgo);
+      } else if (adminSettings.timeRange === 'Monthly') {
+        const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        data = data.filter(r => new Date(r.sessiondate) >= oneMonthAgo);
+      }
       
       if (!data || data.length === 0) {
-        alert('No attendance data available to generate report.');
+        alert('No attendance data available for the selected filters.');
         return;
       }
 
@@ -3021,14 +3045,27 @@ const AdminDashboard = ({ onLogout }) => {
                           value={adminSettings.timeRange}
                           onChange={val => updateSetting('timeRange', val)}
                           options={[
-                            { value: 'Daily', label: 'Daily' },
-                            { value: 'Weekly', label: 'Weekly' },
-                            { value: 'Monthly', label: 'Monthly' },
-                            { value: 'Semester', label: 'Semester' }
+                            { value: 'Daily', label: 'Daily (Select Date)' },
+                            { value: 'Weekly', label: 'Weekly (Last 7 Days)' },
+                            { value: 'Monthly', label: 'Monthly (Last 30 Days)' },
+                            { value: 'Semester', label: 'Semester (All Time)' }
                           ]}
                           className={inputStyle}
                         />
                       </div>
+                      
+                      {adminSettings.timeRange === 'Daily' && (
+                        <div className="animate-fade-in">
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Select Date</label>
+                          <input 
+                            type="date" 
+                            value={adminSettings.reportDate} 
+                            onChange={e => updateSetting('reportDate', e.target.value)} 
+                            className={inputStyle} 
+                          />
+                        </div>
+                      )}
+
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Target Filter</label>
                         <CustomSelect 
@@ -3042,6 +3079,34 @@ const AdminDashboard = ({ onLogout }) => {
                           className={inputStyle}
                         />
                       </div>
+
+                      {adminSettings.targetFilter === 'Specific Class' && (
+                        <div className="animate-fade-in">
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Select Class</label>
+                          <CustomSelect 
+                            value={adminSettings.reportClassId}
+                            onChange={val => updateSetting('reportClassId', val)}
+                            options={[
+                              { value: '', label: 'Select a class...' },
+                              ...classes.map(c => ({ value: c.classid, label: `${c.classcode} - ${c.classname}` }))
+                            ]}
+                            className={inputStyle}
+                          />
+                        </div>
+                      )}
+
+                      {adminSettings.targetFilter === 'Specific Student' && (
+                        <div className="animate-fade-in">
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Student ID or Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. ST-001 or John Doe"
+                            value={adminSettings.reportStudentId} 
+                            onChange={e => updateSetting('reportStudentId', e.target.value)} 
+                            className={inputStyle} 
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-auto">
                       <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>

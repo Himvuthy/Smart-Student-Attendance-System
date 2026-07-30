@@ -718,6 +718,7 @@ app.get('/api/reports/attendance', async (req, res) => {
         a.minutelate,
         s.studentid,
         e.fullname AS studentname,
+        c.classid,
         c.classcode,
         c.classname,
         sess.sessiondate
