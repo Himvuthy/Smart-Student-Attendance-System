@@ -3231,12 +3231,12 @@ const AdminDashboard = ({ onLogout }) => {
               {unenrolledStudents.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <UserPlus size={48} className="mx-auto mb-4 opacity-20" />
-                  <p className="text-sm">Cannot load unenrolled list (or none left).<br/>You can still type the ID manually above.</p>
+                  <p className="text-sm">All students are already enrolled</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {unenrolledStudents
-                    .filter(s => s.studentid.toLowerCase().includes(enrollSearchQuery.toLowerCase()) || s.fullname.toLowerCase().includes(enrollSearchQuery.toLowerCase()))
+                    .filter(s => String(s.studentid).toLowerCase().includes(enrollSearchQuery.toLowerCase()) || s.fullname.toLowerCase().includes(enrollSearchQuery.toLowerCase()))
                     .map(student => (
                     <div key={student.studentid} className={`flex items-center justify-between p-3 rounded-lg border ${borderSubColor} ${hoverBg}`}>
                       <div className="flex items-center gap-3">
