@@ -2916,12 +2916,12 @@ const AdminDashboard = ({ onLogout }) => {
                       <h3 className={`text-xl font-bold mb-6 ${textColor}`}>{editingClass ? 'Edit Class' : 'Create New Class'}</h3>
                       <form onSubmit={handleCreateClassSubmit} className="space-y-4">
                         <div>
-                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Code</label>
-                          <input type="text" value={newClass.classcode} onChange={(e) => setNewClass({...newClass, classcode: e.target.value})} className={inputStyle} placeholder="e.g. DSE-M3" required />
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Name</label>
+                          <input type="text" value={newClass.classcode} onChange={(e) => setNewClass({...newClass, classcode: e.target.value})} className={inputStyle} placeholder="e.g. Software Engineering Cohort 3" required />
                         </div>
                         <div>
-                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Name</label>
-                          <input type="text" value={newClass.classname} onChange={(e) => setNewClass({...newClass, classname: e.target.value})} className={inputStyle} placeholder="e.g. Software Engineering Cohort 3" required />
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Class Code</label>
+                          <input type="text" value={newClass.classname} onChange={(e) => setNewClass({...newClass, classname: e.target.value})} className={inputStyle} placeholder="e.g. DSE-M3" required />
                         </div>
                         <div>
                           <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Major</label>
