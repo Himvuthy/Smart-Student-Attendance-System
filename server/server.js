@@ -585,7 +585,7 @@ app.get('/api/classes/:classid/unenrolled-students', async (req, res) => {
   try {
     const { classid } = req.params;
     const result = await pool.query(`
-      SELECT s.studentid, ent.fullname, ent.profilepicture, ent.email 
+      SELECT s.studentid, ent.fullname, ent.profilepicture
       FROM student s
       JOIN entity ent ON s.eid = ent.eid
       WHERE s.studentid NOT IN (
