@@ -139,6 +139,17 @@ const AdminDashboard = ({ onLogout }) => {
   ]);
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef(null);
+  const notificationRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleTerminalSubmit = async (e) => {
     if (e.key === 'Enter' && terminalInput.trim()) {
@@ -1219,7 +1230,7 @@ const AdminDashboard = ({ onLogout }) => {
           
           <div className="flex items-center gap-5">
             <span className={`${mutedText} uppercase tracking-wider text-xs font-semibold hidden md:block`}>{currentDate}</span>
-            <div className="relative">
+            <div className="relative" ref={notificationRef}>
               <button 
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className={`${mutedText} ${notificationsOpen ? brandColor : buttonHoverText} transition relative p-2 ml-2`}
