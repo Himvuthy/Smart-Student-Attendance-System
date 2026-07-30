@@ -2862,12 +2862,15 @@ const AdminDashboard = ({ onLogout }) => {
                         </div>
                         <div>
                           <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Major</label>
-                          <select value={newClass.majorid} onChange={(e) => setNewClass({...newClass, majorid: e.target.value})} className={inputStyle} required>
-                            <option value="">Select Major...</option>
-                            {majors.map(m => (
-                              <option key={m.majorid} value={m.majorid}>{m.majorname}</option>
-                            ))}
-                          </select>
+                          <CustomSelect 
+                            value={newClass.majorid} 
+                            onChange={(val) => setNewClass({...newClass, majorid: val ? parseInt(val) : ''})} 
+                            options={[
+                              { value: '', label: 'Select Major...' },
+                              ...majors.map(m => ({ value: m.majorid, label: m.majorname }))
+                            ]}
+                            className={inputStyle} 
+                          />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -3367,28 +3370,24 @@ const AdminDashboard = ({ onLogout }) => {
               </div>
               <div>
                 <label className={`block text-xs font-bold mb-2 ${mutedText}`}>DAY OF WEEK</label>
-                <select 
+                <CustomSelect 
                   value={scheduleFormData.dayofweek}
-                  onChange={e => setScheduleFormData({...scheduleFormData, dayofweek: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? 'text-white [&>option]:bg-[#1e1e1e]' : ''}`}
-                >
-                  {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+                  onChange={val => setScheduleFormData({...scheduleFormData, dayofweek: val})}
+                  options={['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => ({value: d, label: d}))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`}
+                />
               </div>
               <div>
                 <label className={`block text-xs font-bold mb-2 ${mutedText}`}>ASSIGNED TEACHER</label>
-                <select 
+                <CustomSelect 
                   value={scheduleFormData.teacherid}
-                  onChange={e => setScheduleFormData({...scheduleFormData, teacherid: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500 ${isDark ? 'text-white [&>option]:bg-[#1e1e1e]' : ''}`}
-                >
-                  <option value="">-- Unassigned --</option>
-                  {entities.filter(e => e.roleid === 2).map(t => (
-                    <option key={t.eid} value={t.eid}>{t.fullname}</option>
-                  ))}
-                </select>
+                  onChange={val => setScheduleFormData({...scheduleFormData, teacherid: val ? parseInt(val) : ''})}
+                  options={[
+                    { value: '', label: '-- Unassigned --' },
+                    ...entities.filter(e => e.roleid === 2).map(t => ({ value: t.eid, label: t.fullname }))
+                  ]}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`}
+                />
               </div>
             </div>
             <div className={`p-4 border-t ${borderSubColor} flex justify-between gap-2`}>
