@@ -135,8 +135,7 @@ const AdminDashboard = ({ onLogout }) => {
   // Terminal UI State
   const [activeTerminalTab, setActiveTerminalTab] = useState('log');
   const [terminalLogs, setTerminalLogs] = useState([
-    { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: 'System logs initialized. Ready for queries.', color: 'text-blue-400' },
-    { time: new Date().toLocaleTimeString(), action: 'INFO', msg: 'Type a SQL query and press Enter to execute.', color: 'text-gray-400' }
+    { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: 'Dashboard initialized. Monitoring backend events.', color: 'text-blue-400' }
   ]);
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef(null);
@@ -457,6 +456,7 @@ const AdminDashboard = ({ onLogout }) => {
         body: JSON.stringify(newEntity)
       });
       if (res.ok) {
+        setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `${isEdit ? 'Modified' : 'Created'} entity: ${optimisticEntity.fullname}`, color: isEdit ? 'text-amber-400' : 'text-green-400' }]);
         fetchEntities(); // Sync with real IDs
       } else {
         throw new Error('Failed to save');
@@ -477,6 +477,8 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       const res = await fetch(`${baseUrl}/api/entities/${eid}`, { method: 'DELETE' });
       if (res.ok) {
+        const deletedEnt = previousEntities.find(e => e.eid === eid);
+        if (deletedEnt) setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Deleted entity: ${deletedEnt.fullname}`, color: 'text-red-400' }]);
         fetchEntities();
       } else {
         throw new Error('Failed to delete entity');
@@ -656,6 +658,7 @@ const AdminDashboard = ({ onLogout }) => {
           body: JSON.stringify(scheduleFormData)
         });
         const updatedSched = await res.json();
+        setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Modified schedule for class ID ${updatedSched.classid}`, color: 'text-amber-400' }]);
         setTimetableSchedules(prev => prev.map(s => s.scheduleid === updatedSched.scheduleid ? updatedSched : s));
       } else {
         // Add
@@ -665,6 +668,7 @@ const AdminDashboard = ({ onLogout }) => {
           body: JSON.stringify(scheduleFormData)
         });
         const newSched = await res.json();
+        setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Created schedule for class ID ${newSched.classid}`, color: 'text-green-400' }]);
         setTimetableSchedules(prev => [...prev, newSched]);
       }
       setShowScheduleModal(false);
@@ -680,6 +684,7 @@ const AdminDashboard = ({ onLogout }) => {
       await fetch(`${baseUrl}/api/schedules/${scheduleid}`, {
         method: 'DELETE'
       });
+      setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Deleted schedule ID ${scheduleid}`, color: 'text-red-400' }]);
       setTimetableSchedules(prev => prev.filter(s => s.scheduleid !== scheduleid));
     } catch (error) {
       console.error('Failed to delete schedule', error);
@@ -1023,6 +1028,7 @@ const AdminDashboard = ({ onLogout }) => {
       if (newData && dataCache.current.attendance[selectedSchedule.scheduleid]) {
          dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
       }
+      setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `Enrolled student ID ${studentIdToEnroll} into class ID ${selectedClass.classid}`, color: 'text-green-400' }]);
       setEnrollSearchQuery(''); // reset
     } catch (e) {
       console.error(e);
