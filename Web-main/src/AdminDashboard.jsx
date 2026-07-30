@@ -13,6 +13,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieC
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const baseUrl = API_BASE.replace(/\/$/, '');
+const hardwareBaseUrl = 'http://localhost:3000'; // Override for local hardware API
 
 const CustomSelect = ({ value, onChange, options, className }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -221,7 +222,7 @@ const AdminDashboard = ({ onLogout }) => {
   const handleConfigureDeviceSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${baseUrl}/api/devices/${editingDevice.deviceid}`, {
+      const res = await fetch(`${hardwareBaseUrl}/api/devices/${editingDevice.deviceid}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ devicename: editingDevice.devicename, location: editingDevice.location })
@@ -242,7 +243,7 @@ const AdminDashboard = ({ onLogout }) => {
   const handleRegisterDeviceSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${baseUrl}/api/devices`, {
+      const res = await fetch(`${hardwareBaseUrl}/api/devices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDevice)
@@ -344,7 +345,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const fetchHardwareDevices = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/devices`);
+      const res = await fetch(`${hardwareBaseUrl}/api/devices`);
       if (res.ok) {
         const data = await res.json();
         setHardwareDevices(data);
@@ -691,7 +692,11 @@ const AdminDashboard = ({ onLogout }) => {
       setIsTrackingLoading(true);
     }
     try {
-      const res = await fetch(`${baseUrl}/api/attendance-tracking/classes`);
+      const localDate = new Date();
+      const todayDateStr = localDate.getFullYear() + '-' + String(localDate.getMonth() + 1).padStart(2, '0') + '-' + String(localDate.getDate()).padStart(2, '0');
+      const todayDayName = localDate.toLocaleDateString('en-US', { weekday: 'long' });
+      
+      const res = await fetch(`${baseUrl}/api/attendance-tracking/classes?day=${todayDayName}&date=${todayDateStr}`);
       const data = await res.json();
       setTrackingClasses(data);
       dataCache.current.trackingClasses = data;
@@ -3036,8 +3041,8 @@ const AdminDashboard = ({ onLogout }) => {
                   {/* Console Header */}
                   <div className="bg-[#21252b] px-6 py-4 flex items-center justify-between border-b border-[#181a1f]">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setActiveTerminalTab('log')} className={`${activeTerminalTab === 'log' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Log ({terminalLogs.filter(l => l.action !== 'SQL').length})</button>
-                      <button onClick={() => setActiveTerminalTab('query')} className={`${activeTerminalTab === 'query' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Query ({terminalLogs.filter(l => l.action === 'SQL').length})</button>
+                      <button onClick={() => setActiveTerminalTab('log')} className={`${activeTerminalTab === 'log' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Log ({terminalLogs.filter(l => !['ADMIN_QUERY', 'SUCCESS', 'ERROR'].includes(l.action)).length})</button>
+                      <button onClick={() => setActiveTerminalTab('query')} className={`${activeTerminalTab === 'query' ? 'bg-[#3a3f4b] text-white' : 'text-gray-400 hover:bg-[#3a3f4b]/50 hover:text-white'} text-[12px] font-bold px-4 py-2 rounded-md transition`}>Query ({terminalLogs.filter(l => ['ADMIN_QUERY', 'SUCCESS', 'ERROR'].includes(l.action)).length})</button>
                       <div className="w-px h-4 bg-gray-700 mx-2"></div>
                       <button className="text-gray-400 hover:text-white text-[12px] font-bold px-2 py-1 transition">Refresh</button>
                     </div>
@@ -3050,7 +3055,7 @@ const AdminDashboard = ({ onLogout }) => {
                   
                   {/* Console Body */}
                   <div className="p-6 overflow-y-auto custom-scrollbar flex-1 font-mono text-[14px] leading-[1.5] flex flex-col tracking-tight select-text">
-                    {terminalLogs.filter(log => activeTerminalTab === 'query' ? log.action === 'SQL' : log.action !== 'SQL').map((log, i) => (
+                    {terminalLogs.filter(log => activeTerminalTab === 'query' ? ['ADMIN_QUERY', 'SUCCESS', 'ERROR'].includes(log.action) : !['ADMIN_QUERY', 'SUCCESS', 'ERROR'].includes(log.action)).map((log, i) => (
                       <div key={i} className={`${log.color} whitespace-pre-wrap`}>
                         [{log.time}] [{log.action}]: {log.msg}
                       </div>

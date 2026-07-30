@@ -183,15 +183,6 @@ app.get('/api/admin/dashboard', async (req, res) => {
 });
 
 // GET all devices
-app.get('/api/devices', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM device ORDER BY deviceid ASC');
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching devices:', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // GET all users
 app.get('/api/users', async (req, res) => {
@@ -731,7 +722,9 @@ app.get('/api/attendance-tracking/classes', async (req, res) => {
     `);
     
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const todayStr = days[new Date().getDay()];
+    const todayStr = req.query.day || days[new Date().getDay()];
+    // Get local date YYYY-MM-DD from frontend, fallback to server date
+    const currentDate = req.query.date || new Date().toISOString().split('T')[0];
     
     const enhancedClasses = await Promise.all(classResult.rows.map(async (cls) => {
       let todaySubject = null;
@@ -741,7 +734,7 @@ app.get('/api/attendance-tracking/classes', async (req, res) => {
       const scheduleRes = await pool.query('SELECT scheduleid, subject FROM schedule WHERE classid = $1 AND dayofweek = $2', [cls.classid, todayStr]);
       if (scheduleRes.rows.length > 0) {
         todaySubject = scheduleRes.rows[0].subject;
-        const sessionRes = await pool.query('SELECT sessionid FROM session WHERE scheduleid = $1 AND sessiondate = CURRENT_DATE', [scheduleRes.rows[0].scheduleid]);
+        const sessionRes = await pool.query('SELECT sessionid FROM session WHERE scheduleid = $1 AND sessiondate = $2', [scheduleRes.rows[0].scheduleid, currentDate]);
         if (sessionRes.rows.length > 0) {
           const attRes = await pool.query("SELECT COUNT(*) FROM attendance WHERE sessionid = $1 AND status != '-' AND status != 'Absent'", [sessionRes.rows[0].sessionid]);
           presentCount = parseInt(attRes.rows[0].count);
@@ -1245,10 +1238,10 @@ app.get('/api/devices', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM device');
     
-    // Check heartbeat timeout
+    // Check heartbeat timeout (allow 15 seconds for missed pings)
     if (scannerStatus.lastSync) {
       const diff = new Date() - new Date(scannerStatus.lastSync);
-      if (diff > 30000) {
+      if (diff > 15000) {
         scannerStatus.online = false;
       }
     }
