@@ -397,8 +397,8 @@ app.post('/api/classes', async (req, res) => {
 app.put('/api/classes/:classid', async (req, res) => {
   const { classid } = req.params;
   const { classcode, classname, academicyear, semester, majorid } = req.body;
-  if (!classcode || !classname) {
-    return res.status(400).json({ error: 'Class code and name are required' });
+  if (!classcode || !classname || !majorid) {
+    return res.status(400).json({ error: 'Class code, name, and major are required' });
   }
 
   try {
@@ -726,7 +726,8 @@ app.get('/api/reports/attendance', async (req, res) => {
       JOIN student s ON a.studentid = s.studentid
       JOIN entity e ON s.eid = e.eid
       JOIN session sess ON a.sessionid = sess.sessionid
-      JOIN class c ON sess.classid = c.classid
+      JOIN schedule sch ON sess.scheduleid = sch.scheduleid
+      JOIN class c ON sch.classid = c.classid
       ORDER BY a.attendedat DESC
     `;
     const result = await pool.query(query);

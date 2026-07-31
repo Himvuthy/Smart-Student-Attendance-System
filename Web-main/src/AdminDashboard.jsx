@@ -29,7 +29,7 @@ const CustomSelect = ({ value, onChange, options, className }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedOption = options.find(opt => opt.value === value) || options[0];
+  const selectedOption = options.find(opt => opt.value == value) || options[0];
 
   return (
     <div className="relative" ref={selectRef}>
@@ -580,11 +580,11 @@ const AdminDashboard = ({ onLogout }) => {
         fetchTrackingClasses(); 
         setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `${isEdit ? 'Modified' : 'Created'} class ${newClass.classcode}`, color: isEdit ? 'text-amber-400' : 'text-green-400' }]);
       } else {
-        alert(`Failed to ${isEdit ? 'update' : 'create'} class`);
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Failed to ${isEdit ? 'update' : 'create'} class: ${errorData.error || 'Internal Server Error'}`);
       }
     } catch (e) {
-      console.error(e);
-      alert(`Error ${isEdit ? 'updating' : 'creating'} class`);
+      alert(`Error: ${e.message}`);
     }
   };
 
