@@ -7,8 +7,7 @@ import {
   Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ChevronRight, ShieldCheck, CheckCircle2, Shield, Camera
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import ExcelJS from 'exceljs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -1011,35 +1010,42 @@ const AdminDashboard = ({ onLogout }) => {
         link.download = `${filename}.csv`;
         link.click();
       } else if (format === 'Excel') {
-        const worksheet = XLSX.utils.json_to_sheet(formattedData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
-        XLSX.writeFile(workbook, `${filename}.xlsx`);
-      } else if (format === 'PDF') {
-        const doc = new jsPDF();
-        doc.text('System-Wide Attendance Report', 14, 15);
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Attendance');
         
-        const tableColumn = Object.keys(formattedData[0]);
-        const tableRows = formattedData.map(row => Object.values(row));
+        const headers = Object.keys(formattedData[0]);
+        sheet.addRow(headers);
         
-        doc.autoTable({
-          head: [tableColumn],
-          body: tableRows,
-          startY: 20,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [79, 70, 229] },
-          didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index >= 4) { // Status columns start after ID, Name, Class Code, Class Name
-              const val = data.cell.raw;
-              if (val === 'P') data.cell.styles.textColor = [34, 197, 94]; // Green
-              else if (val === 'A') data.cell.styles.textColor = [239, 68, 68]; // Red
-              else if (val === 'L') data.cell.styles.textColor = [234, 179, 8]; // Yellow
-              else if (val === 'E') data.cell.styles.textColor = [59, 130, 246]; // Blue
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+        
+        formattedData.forEach((rowObj) => {
+          const rowValues = Object.values(rowObj);
+          const row = sheet.addRow(rowValues);
+          
+          row.eachCell((cell, colNumber) => {
+            if (colNumber > 4) { // Status columns
+              const val = cell.value;
+              if (val === 'P') cell.font = { color: { argb: 'FF16A34A' }, bold: true }; // Green
+              else if (val === 'A') cell.font = { color: { argb: 'FFDC2626' }, bold: true }; // Red
+              else if (val === 'L') cell.font = { color: { argb: 'FFCA8A04' }, bold: true }; // Yellow
+              else if (val === 'E') cell.font = { color: { argb: 'FF2563EB' }, bold: true }; // Blue
             }
-          }
+          });
         });
         
-        doc.save(`${filename}.pdf`);
+        // Auto-fit columns roughly
+        sheet.columns.forEach(column => {
+          column.width = 15;
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${filename}.xlsx`;
+        link.click();
       }
     } catch (e) {
       console.error(e);
@@ -3210,7 +3216,7 @@ const AdminDashboard = ({ onLogout }) => {
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mt-auto">
+                    <div className="grid grid-cols-2 gap-3 mt-auto">
                       <button disabled={isGenerating} onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'CSV' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {isGenerating && generatingFormat === 'CSV' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-csv text-xl"></i>} 
                         {isGenerating && generatingFormat === 'CSV' ? 'Generating...' : 'CSV'}
@@ -3218,10 +3224,6 @@ const AdminDashboard = ({ onLogout }) => {
                       <button disabled={isGenerating} onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'Excel' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {isGenerating && generatingFormat === 'Excel' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-excel text-xl"></i>} 
                         {isGenerating && generatingFormat === 'Excel' ? 'Generating...' : 'Excel'}
-                      </button>
-                      <button disabled={isGenerating} onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'PDF' ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                        {isGenerating && generatingFormat === 'PDF' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-pdf text-xl"></i>} 
-                        {isGenerating && generatingFormat === 'PDF' ? 'Generating...' : 'PDF'}
                       </button>
                     </div>
                   </div>
