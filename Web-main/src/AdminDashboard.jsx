@@ -938,8 +938,27 @@ const AdminDashboard = ({ onLogout }) => {
         return;
       }
 
-      // Extract unique dates and sort them chronologically
-      const rawDates = [...new Set(data.map(r => new Date(r.sessiondate).toISOString().split('T')[0]))].sort();
+      // Determine the expected date columns based on timeRange
+      let expectedDates = [];
+      if (adminSettings.timeRange === 'Daily') {
+        const dStr = new Date(adminSettings.reportDate).toISOString().split('T')[0];
+        expectedDates.push(dStr);
+      } else if (adminSettings.timeRange === 'Weekly') {
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          expectedDates.push(d.toISOString().split('T')[0]);
+        }
+      } else if (adminSettings.timeRange === 'Monthly') {
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          expectedDates.push(d.toISOString().split('T')[0]);
+        }
+      } else {
+        // Semester / All Time: use unique dates from data
+        expectedDates = [...new Set(data.map(r => new Date(r.sessiondate).toISOString().split('T')[0]))].sort();
+      }
+
+      const rawDates = expectedDates;
       const dateColumns = rawDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC'}));
 
       // Group by student and class to create a pivot table
@@ -953,9 +972,9 @@ const AdminDashboard = ({ onLogout }) => {
             'Class Code': row.classcode,
             'Class Name': row.classname,
           };
-          // Initialize all date columns to '-'
+          // Initialize all date columns to 'A' (Absent) by default as requested
           rawDates.forEach((rd, idx) => {
-            studentClassGroups[key][dateColumns[idx]] = '-';
+            studentClassGroups[key][dateColumns[idx]] = 'A';
           });
         }
         
@@ -963,9 +982,8 @@ const AdminDashboard = ({ onLogout }) => {
         const dateIdx = rawDates.indexOf(dateStr);
         if (dateIdx !== -1) {
           const status = row.status;
-          let displayChar = '-';
+          let displayChar = 'A'; // fallback to A
           if (status === 'Present') displayChar = 'P';
-          else if (status === 'Absent') displayChar = 'A';
           else if (status === 'Late') displayChar = 'L';
           else if (status === 'Permission' || status === 'Excused') displayChar = 'E';
           
