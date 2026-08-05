@@ -2888,14 +2888,7 @@ const AdminDashboard = ({ onLogout }) => {
                              Semester {selectedClass?.semester || 1}
                            </span>
                         </div>
-                        {!isEditingAttendance && (
-                          <button 
-                            onClick={openAddStudentModal}
-                            className={`px-4 py-2 rounded-lg font-bold text-xs shadow-sm transition inline-flex items-center gap-2 ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
-                          >
-                            <UserPlus size={14} /> Add Student
-                          </button>
-                        )}
+
                         {!isEditingAttendance && (
                           <button 
                             onClick={exportToCSV}
@@ -3064,14 +3057,20 @@ const AdminDashboard = ({ onLogout }) => {
                   </div>
                 ) : selectedClass ? (
                   <div>
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center justify-between mb-6">
                       <div>
-                        <button onClick={goBackToClasses} className={`px-4 py-2 rounded-lg font-bold text-xs text-white shadow-sm transition mb-4 inline-flex items-center gap-1 w-fit ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
-                          ← Back to Classes
+                        <button onClick={() => setSelectedClass(null)} className={`text-xs font-bold mb-3 ${isDark ? 'text-indigo-400' : 'text-indigo-600'} hover:underline inline-flex items-center gap-1`}>
+                          &larr; Back to Classes
                         </button>
                         <h3 className="font-bold text-lg">{selectedClass.classname} ({selectedClass.classcode}) Schedules</h3>
                         <p className={`text-xs ${mutedText} mt-1`}>Select a schedule to view the attendance sheet.</p>
                       </div>
+                      <button 
+                        onClick={() => openAddStudentModal(selectedClass)}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition inline-flex items-center gap-2 ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
+                      >
+                        <UserPlus size={14} /> Add Student
+                      </button>
                     </div>
                     {isSchedulesLoading ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
@@ -3907,8 +3906,11 @@ const AdminDashboard = ({ onLogout }) => {
                       });
                       text = text.trim().toLowerCase();
                       
+                      if (filters.eid && !String(s.eid).toLowerCase().includes(filters.eid)) return false;
+                      if (filters.uid && !String(s.userid || '').toLowerCase().includes(filters.uid)) return false;
                       if (filters.gender && (!s.gender || s.gender.toLowerCase() !== filters.gender)) return false;
-                      if (text && !s.fullname.toLowerCase().includes(text) && !String(s.studentid).toLowerCase().includes(text)) return false;
+                      
+                      if (text && !s.fullname.toLowerCase().includes(text) && !String(s.studentid).toLowerCase().includes(text) && !String(s.eid).toLowerCase().includes(text) && !String(s.userid || '').toLowerCase().includes(text)) return false;
                       
                       return true;
                     })
