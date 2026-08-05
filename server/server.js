@@ -725,27 +725,44 @@ app.put('/api/attendance/bulk', async (req, res) => {
 // GET system-wide attendance for reports
 app.get('/api/reports/attendance', async (req, res) => {
   try {
-    const query = `
-      SELECT 
-        a.attendanceid,
-        a.status,
-        a.attendedat,
-        a.minutelate,
+    const { classid, date } = req.query;
+
+    // Build the query: start from ALL enrolled students, left-join sessions & attendance
+    // so students with no record appear as "Absent"
+    let query = `
+      SELECT
         s.studentid,
         e.fullname AS studentname,
         c.classid,
         c.classcode,
         c.classname,
-        sess.sessiondate
-      FROM attendance a
-      JOIN student s ON a.studentid = s.studentid
-      JOIN entity e ON s.eid = e.eid
-      JOIN session sess ON a.sessionid = sess.sessionid
-      JOIN schedule sch ON sess.scheduleid = sch.scheduleid
-      JOIN class c ON sch.classid = c.classid
-      ORDER BY a.attendedat DESC
+        sess.sessiondate,
+        COALESCE(a.status, 'Absent') AS status,
+        a.attendedat,
+        COALESCE(a.minutelate, 0) AS minutelate
+      FROM enrollment en
+      JOIN student s   ON en.studentid = s.studentid
+      JOIN entity e    ON s.eid = e.eid
+      JOIN class c     ON en.classid  = c.classid
+      JOIN schedule sch ON sch.classid = c.classid
+      JOIN session sess  ON sess.scheduleid = sch.scheduleid
+      LEFT JOIN attendance a ON a.studentid = s.studentid AND a.sessionid = sess.sessionid
+      WHERE 1=1
     `;
-    const result = await pool.query(query);
+    const params = [];
+
+    if (classid) {
+      params.push(classid);
+      query += ` AND c.classid = $${params.length}`;
+    }
+    if (date) {
+      params.push(date);
+      query += ` AND sess.sessiondate::date = $${params.length}::date`;
+    }
+
+    query += ` ORDER BY e.fullname ASC, sess.sessiondate ASC`;
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching report data:', error);

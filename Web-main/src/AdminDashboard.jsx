@@ -901,31 +901,38 @@ const AdminDashboard = ({ onLogout }) => {
 
   const handleGenerateReport = async (format) => {
     try {
-      const res = await fetch(`${baseUrl}/api/reports/attendance`);
+      const params = new URLSearchParams();
+
+      // Always pass class filter to backend for proper "all students" enrollment lookup
+      if (adminSettings.targetFilter === 'Specific Class' && adminSettings.reportClassId) {
+        params.set('classid', adminSettings.reportClassId);
+      }
+
+      // Pass date for Daily reports
+      if (adminSettings.timeRange === 'Daily' && adminSettings.reportDate) {
+        params.set('date', adminSettings.reportDate);
+      }
+
+      const res = await fetch(`${baseUrl}/api/reports/attendance?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch report data');
       let data = await res.json();
-      
-      // Filter by Target
-      if (adminSettings.targetFilter === 'Specific Class' && adminSettings.reportClassId) {
-        data = data.filter(r => String(r.classid) === String(adminSettings.reportClassId));
-      } else if (adminSettings.targetFilter === 'Specific Student' && adminSettings.reportStudentId) {
+
+      // Client-side: filter for specific student by name/id
+      if (adminSettings.targetFilter === 'Specific Student' && adminSettings.reportStudentId) {
         const sid = adminSettings.reportStudentId.trim().toLowerCase();
         data = data.filter(r => String(r.studentid).toLowerCase().includes(sid) || String(r.studentname).toLowerCase().includes(sid));
       }
 
-      // Filter by Time Range
+      // Client-side time range for Weekly / Monthly (date already handled by backend for Daily)
       const now = new Date();
-      if (adminSettings.timeRange === 'Daily' && adminSettings.reportDate) {
-        const selectedDateStr = new Date(adminSettings.reportDate).toLocaleDateString();
-        data = data.filter(r => new Date(r.sessiondate).toLocaleDateString() === selectedDateStr);
-      } else if (adminSettings.timeRange === 'Weekly') {
+      if (adminSettings.timeRange === 'Weekly') {
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         data = data.filter(r => new Date(r.sessiondate) >= oneWeekAgo);
       } else if (adminSettings.timeRange === 'Monthly') {
         const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         data = data.filter(r => new Date(r.sessiondate) >= oneMonthAgo);
       }
-      
+
       if (!data || data.length === 0) {
         alert('No attendance data available for the selected filters.');
         return;
