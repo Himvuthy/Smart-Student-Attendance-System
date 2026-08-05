@@ -1319,7 +1319,8 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       const res = await fetch(`${baseUrl}/api/classes/${targetClass.classid}/unenrolled-students`);
       const data = await res.json();
-      setUnenrolledStudents(data);
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch');
+      setUnenrolledStudents(Array.isArray(data) ? data : []);
       setShowAddStudentModal(true);
     } catch (e) {
       console.error(e);
@@ -3916,8 +3917,9 @@ const AdminDashboard = ({ onLogout }) => {
                     />
                   </div>
                   <div className="space-y-2">
-                  {unenrolledStudents
+                  {(Array.isArray(unenrolledStudents) ? unenrolledStudents : [])
                     .filter(s => {
+                      if (!s) return false;
                       const parts = enrollListSearchQuery.split(' ');
                       const filters = {};
                       let text = '';
@@ -3931,11 +3933,11 @@ const AdminDashboard = ({ onLogout }) => {
                       });
                       text = text.trim().toLowerCase();
                       
-                      if (filters.eid && !String(s.eid).toLowerCase().includes(filters.eid)) return false;
+                      if (filters.eid && !String(s.eid || '').toLowerCase().includes(filters.eid)) return false;
                       if (filters.uid && !String(s.userid || '').toLowerCase().includes(filters.uid)) return false;
                       if (filters.gender && (!s.gender || s.gender.toLowerCase() !== filters.gender)) return false;
                       
-                      if (text && !s.fullname.toLowerCase().includes(text) && !String(s.studentid).toLowerCase().includes(text) && !String(s.eid).toLowerCase().includes(text) && !String(s.userid || '').toLowerCase().includes(text)) return false;
+                      if (text && !(s.fullname || '').toLowerCase().includes(text) && !String(s.studentid || '').toLowerCase().includes(text) && !String(s.eid || '').toLowerCase().includes(text) && !String(s.userid || '').toLowerCase().includes(text)) return false;
                       
                       return true;
                     })
