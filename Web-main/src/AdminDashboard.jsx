@@ -2735,31 +2735,28 @@ const AdminDashboard = ({ onLogout }) => {
                           </table>
                         </div>
                     ) : attendanceData ? (() => {
-                      const SESSIONS_PER_SEMESTER = 15;
-                      
-                      let baseDate = new Date();
-                      if (selectedClass && selectedClass.startdate) {
-                        baseDate = new Date(selectedClass.startdate);
-                      } else {
-                        baseDate = new Date(new Date().getFullYear(), 0, 1);
-                      }
-                      
+                      // Build date columns: every weekly occurrence from startdate to enddate
                       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                       const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek || 'Monday');
                       
+                      let rangeStart = selectedClass?.startdate ? new Date(selectedClass.startdate) : new Date(new Date().getFullYear(), 0, 1);
+                      let rangeEnd   = selectedClass?.enddate   ? new Date(selectedClass.enddate)   : new Date(new Date().getFullYear(), 11, 31);
+                      rangeEnd.setHours(23, 59, 59, 999);
+
+                      // Advance rangeStart to the first occurrence of the schedule's day-of-week
                       if (targetDayIndex !== -1) {
-                        while (baseDate.getDay() !== targetDayIndex) {
-                          baseDate.setDate(baseDate.getDate() + 1);
+                        while (rangeStart.getDay() !== targetDayIndex) {
+                          rangeStart.setDate(rangeStart.getDate() + 1);
                         }
                       }
-                      
-                      baseDate.setDate(baseDate.getDate() + (attendancePage * SESSIONS_PER_SEMESTER * 7));
-                      
-                      const generatedDates = Array.from({ length: SESSIONS_PER_SEMESTER }).map((_, i) => {
-                        const d = new Date(baseDate);
-                        d.setDate(baseDate.getDate() + (i * 7));
-                        return d;
-                      });
+
+                      // Generate every weekly date from rangeStart up to rangeEnd
+                      const generatedDates = [];
+                      const cursor = new Date(rangeStart);
+                      while (cursor <= rangeEnd) {
+                        generatedDates.push(new Date(cursor));
+                        cursor.setDate(cursor.getDate() + 7);
+                      }
                       
                       return (
                       <div className="overflow-x-auto custom-scrollbar pb-6">
