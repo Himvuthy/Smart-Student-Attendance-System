@@ -3781,7 +3781,7 @@ const AdminDashboard = ({ onLogout }) => {
       
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <form onSubmit={handlePasswordChange} className={`${cardStyle} max-w-sm w-full p-0 overflow-hidden`}>
+          <form onSubmit={handlePasswordChange} className={`${cardStyle} max-w-sm w-full !p-0 overflow-hidden`}>
             <div className={`p-4 border-b ${borderSubColor} flex justify-between items-center`}>
               <h2 className="text-lg font-bold">Change Password</h2>
               <button type="button" onClick={() => setShowPasswordModal(false)} className={`${mutedText} hover:text-red-500 transition`}>
