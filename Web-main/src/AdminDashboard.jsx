@@ -3713,7 +3713,7 @@ const AdminDashboard = ({ onLogout }) => {
                 </div>
 
 
-                <section className={`${cardStyle} overflow-hidden !p-0`}>
+                <section className={`${cardStyle} !p-0`}>
                   <div className={`border-b ${borderColor} p-5 flex items-center gap-3`}>
                     <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-violet-400/10 text-violet-300' : 'bg-violet-50 text-violet-600'}`}><Shield size={19} /></span>
                     <div><h3 className="font-extrabold">Account security</h3><p className={`mt-1 text-xs ${mutedText}`}>Protect your dashboard and sign-in details.</p></div>
@@ -3736,7 +3736,7 @@ const AdminDashboard = ({ onLogout }) => {
                   </div>
                 </section>
 
-                <section className={`${cardStyle} overflow-hidden !p-0`}>
+                <section className={`${cardStyle} !p-0`}>
                   <div className={`border-b ${borderColor} p-5`}><h3 className="font-extrabold">My preferences</h3><p className={`mt-1 text-xs ${mutedText}`}>Personalize how the portal works for you.</p></div>
                   <div className={`divide-y ${borderColor} px-5`}>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
