@@ -3418,14 +3418,14 @@ const AdminDashboard = ({ onLogout }) => {
                                   {backupMenuOpen === backup.id && (
                                     <div 
                                       onMouseLeave={() => setBackupMenuOpen(null)}
-                                      className={`absolute right-0 top-8 w-36 py-1 rounded-lg shadow-xl z-50 border ${isDark ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}
+                                      className={`absolute right-8 top-6 w-44 py-2 rounded-xl shadow-2xl z-[100] border font-bold ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                                     >
-                                      <button onClick={() => { alert(`Downloading ${backup.name}...`); setBackupMenuOpen(null); }} className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition`}>
-                                        <Download size={14} className="inline mr-2" /> Download
-                                      </button>
-                                      <button onClick={() => { toggleBackupLock(backup.id); setBackupMenuOpen(null); }} className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition ${backup.isLocked ? 'text-orange-500' : 'text-emerald-500'}`}>
-                                        {backup.isLocked ? <Unlock size={14} className="inline mr-2" /> : <Lock size={14} className="inline mr-2" />} 
+                                      <button onClick={() => { toggleBackupLock(backup.id); setBackupMenuOpen(null); }} className="w-full text-left px-4 py-2.5 text-[13px] hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                                        {backup.isLocked ? <Unlock size={16} className="text-gray-900 dark:text-white" /> : <Lock size={16} className="text-gray-900 dark:text-white" />} 
                                         {backup.isLocked ? 'Unlock' : 'Lock'}
+                                      </button>
+                                      <button onClick={() => { alert(`Downloading ${backup.name}...`); setBackupMenuOpen(null); }} className="w-full text-left px-4 py-2.5 text-[13px] hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                                        <Download size={16} className="text-gray-900 dark:text-white" /> Download (.sql)
                                       </button>
                                     </div>
                                   )}
