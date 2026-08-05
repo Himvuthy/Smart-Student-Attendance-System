@@ -328,6 +328,29 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+app.post('/api/users/change-password', async (req, res) => {
+  const { userid, currentPassword, newPassword } = req.body;
+  if (!userid || !currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+  try {
+    const userRes = await pool.query('SELECT passwordhash FROM useraccount WHERE userid = $1', [userid]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const match = await bcrypt.compare(currentPassword, userRes.rows[0].passwordhash);
+    if (!match) return res.status(401).json({ error: 'Incorrect current password' });
+    
+    const hashedNew = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE useraccount SET passwordhash = $1 WHERE userid = $2', [hashedNew, userid]);
+    
+    await logSystemAction('UPDATE_PASSWORD', `User ID ${userid} changed their password`, 'text-orange-500');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // --- ENTITY CRUD APIS ---
 
 app.get('/api/entities', async (req, res) => {

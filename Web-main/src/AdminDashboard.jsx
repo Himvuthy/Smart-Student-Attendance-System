@@ -112,6 +112,51 @@ const AdminDashboard = ({ onLogout }) => {
     reportStudentId: ''
   });
   
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [passwordError, setPasswordError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordForm.new !== passwordForm.confirm) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+    if (passwordForm.new.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      return;
+    }
+    setPasswordError('');
+    setIsChangingPassword(true);
+
+    try {
+      const userStr = localStorage.getItem('loggedInUser');
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (!user || !user.userid) throw new Error('User session not found. Try logging out and back in.');
+
+      const res = await fetch(`${baseUrl}/api/users/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userid: user.userid,
+          currentPassword: passwordForm.current,
+          newPassword: passwordForm.new
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to change password');
+      
+      alert('Password updated successfully');
+      setShowPasswordModal(false);
+      setPasswordForm({ current: '', new: '', confirm: '' });
+    } catch (err) {
+      setPasswordError(err.message);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const updateSetting = (key, value) => {
     setAdminSettings(prev => ({ ...prev, [key]: value }));
   };
@@ -3701,7 +3746,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <KeyRound size={16} className={isDark ? 'text-violet-300' : 'text-violet-500'} />
                         <div><p className="text-sm font-bold">Change password</p><p className={`mt-1 text-xs ${mutedText}`}>Use at least 8 characters and avoid reused passwords.</p></div>
                       </div>
-                      <button className={`rounded-xl border px-4 py-2 text-xs font-bold transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-[#e2e8f0] hover:bg-slate-50'}`}>Change password</button>
+                      <button onClick={() => setShowPasswordModal(true)} className={`rounded-xl border px-4 py-2 text-xs font-bold transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-[#e2e8f0] hover:bg-slate-50'}`}>Change password</button>
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
@@ -3726,15 +3771,21 @@ const AdminDashboard = ({ onLogout }) => {
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Class reminder time</p><p className={`mt-1 text-xs ${mutedText}`}>When should the portal remind you about your next class?</p></div>
-                      <select value={adminSettings.reminderTime} onChange={(event) => updateSetting('reminderTime', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-[#e2e8f0] text-slate-700'}`}>
-                        {['5 minutes before', '15 minutes before', '30 minutes before', '1 hour before'].map((value) => <option key={value}>{value}</option>)}
-                      </select>
+                      <CustomSelect 
+                        value={adminSettings.reminderTime} 
+                        onChange={(val) => updateSetting('reminderTime', val)} 
+                        options={['5 minutes before', '15 minutes before', '30 minutes before', '1 hour before'].map(v => ({value: v, label: v}))}
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-300' : 'border-[#e2e8f0] text-slate-700 bg-white'}`}
+                      />
                     </div>
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Language</p><p className={`mt-1 text-xs ${mutedText}`}>Choose your preferred dashboard language.</p></div>
-                      <select value={adminSettings.language} onChange={(event) => updateSetting('language', event.target.value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] bg-transparent ${isDark ? 'border-white/10 text-slate-300 [&>option]:bg-slate-900' : 'border-[#e2e8f0] text-slate-700'}`}>
-                        <option>English</option><option>Khmer</option>
-                      </select>
+                      <CustomSelect 
+                        value={adminSettings.language} 
+                        onChange={(val) => updateSetting('language', val)} 
+                        options={[{value: 'English', label: 'English'}, {value: 'Khmer', label: 'Khmer'}]}
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-300' : 'border-[#e2e8f0] text-slate-700 bg-white'}`}
+                      />
                     </div>
                   </div>
                 </section>
@@ -3749,6 +3800,59 @@ const AdminDashboard = ({ onLogout }) => {
           </div>
         </div>
       </main>
+      
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <form onSubmit={handlePasswordChange} className={`${cardStyle} max-w-sm w-full p-0 overflow-hidden`}>
+            <div className={`p-4 border-b ${borderSubColor} flex justify-between items-center`}>
+              <h2 className="text-lg font-bold">Change Password</h2>
+              <button type="button" onClick={() => setShowPasswordModal(false)} className={`${mutedText} hover:text-red-500 transition`}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 flex flex-col gap-4">
+              {passwordError && <div className="text-xs bg-red-500/10 text-red-500 p-2 rounded-lg">{passwordError}</div>}
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>CURRENT PASSWORD</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passwordForm.current}
+                  onChange={e => setPasswordForm(prev => ({...prev, current: e.target.value}))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`} 
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>NEW PASSWORD</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passwordForm.new}
+                  onChange={e => setPasswordForm(prev => ({...prev, new: e.target.value}))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`} 
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-2 ${mutedText}`}>CONFIRM NEW PASSWORD</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passwordForm.confirm}
+                  onChange={e => setPasswordForm(prev => ({...prev, confirm: e.target.value}))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm border ${borderSubColor} bg-transparent outline-none focus:border-indigo-500`} 
+                />
+              </div>
+            </div>
+            <div className={`p-4 border-t ${borderSubColor} bg-black/5 flex justify-end gap-3`}>
+              <button type="button" onClick={() => setShowPasswordModal(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>Cancel</button>
+              <button type="submit" disabled={isChangingPassword} className={`px-4 py-2 rounded-lg font-bold text-xs text-white transition ${isChangingPassword ? 'bg-indigo-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                {isChangingPassword ? 'Saving...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {showAddStudentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`${cardStyle} max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col p-0`}>
