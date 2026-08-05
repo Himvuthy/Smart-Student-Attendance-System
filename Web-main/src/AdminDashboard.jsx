@@ -1252,7 +1252,8 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const openAddStudentModal = async (cls = null) => {
-    const targetClass = cls || selectedClass;
+    // Prevent event object from being treated as class
+    const targetClass = (cls && cls.classid) ? cls : selectedClass;
     if (!targetClass) return;
     
     setTargetEnrollClass(targetClass);
@@ -3002,7 +3003,7 @@ const AdminDashboard = ({ onLogout }) => {
                                     today.setHours(0, 0, 0, 0);
                                     const cellDate = new Date(dateObj);
                                     cellDate.setHours(0, 0, 0, 0);
-                                    if (cellDate <= today) {
+                                    if (cellDate < today) {
                                       defaultVal = 'Absent';
                                     }
                                   }
