@@ -3755,15 +3755,7 @@ const AdminDashboard = ({ onLogout }) => {
                         ))}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                      <div><p className="text-sm font-bold">Class reminder time</p><p className={`mt-1 text-xs ${mutedText}`}>When should the portal remind you about your next class?</p></div>
-                      <CustomSelect 
-                        value={adminSettings.reminderTime} 
-                        onChange={(val) => updateSetting('reminderTime', val)} 
-                        options={['5 minutes before', '15 minutes before', '30 minutes before', '1 hour before'].map(v => ({value: v, label: v}))}
-                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold outline-none focus:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-300' : 'border-[#e2e8f0] text-slate-700 bg-white'}`}
-                      />
-                    </div>
+
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Language</p><p className={`mt-1 text-xs ${mutedText}`}>Choose your preferred dashboard language.</p></div>
                       <CustomSelect 
