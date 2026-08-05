@@ -4,7 +4,7 @@ import {
   Cpu, FileText, Terminal, Settings, LogOut, 
   Users, CheckCircle, XCircle, BarChart3, Sun, Moon,
   CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart as PieChartIcon, MoreHorizontal,
-  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ShieldCheck, CheckCircle2, Shield
+  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ChevronRight, ShieldCheck, CheckCircle2, Shield, Camera
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -560,7 +560,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [majors, setMajors] = useState([]);
-  const [newClass, setNewClass] = useState({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
+  const [newClass, setNewClass] = useState({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '', startdate: '', enddate: '' });
   
   const handleCreateClassSubmit = async (e) => {
     e.preventDefault();
@@ -576,7 +576,7 @@ const AdminDashboard = ({ onLogout }) => {
       if (res.ok) {
         setShowCreateClassModal(false);
         setEditingClass(null);
-        setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' });
+        setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '', startdate: '', enddate: '' });
         fetchTrackingClasses(); 
         setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: `${isEdit ? 'Modified' : 'Created'} class ${newClass.classcode}`, color: isEdit ? 'text-amber-400' : 'text-green-400' }]);
       } else {
@@ -595,7 +595,9 @@ const AdminDashboard = ({ onLogout }) => {
       classname: cls.classname || '',
       academicyear: cls.academicyear || '2025-2026',
       semester: cls.semester || 1,
-      majorid: cls.majorid || ''
+      majorid: cls.majorid || '',
+      startdate: cls.startdate || '',
+      enddate: cls.enddate || ''
     });
     setShowCreateClassModal(true);
   };
@@ -607,6 +609,7 @@ const AdminDashboard = ({ onLogout }) => {
   
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
+  const [attendancePage, setAttendancePage] = useState(0);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   
   // Edit & Enroll State
@@ -1172,6 +1175,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   const viewTitles = {
     dashboard: 'Admin Dashboard',
+    profile: 'My Profile',
     database: 'User Database',
     entities: 'Entity Database',
     biometric: 'Biometric Enrollment',
@@ -1306,7 +1310,7 @@ const AdminDashboard = ({ onLogout }) => {
               )}
             </div>
             <div className={`h-8 w-px ${borderColor} mx-2`}></div>
-            <div className="flex items-center gap-3 cursor-pointer">
+            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onClick={() => setActiveView('profile')}>
               <img src="https://ui-avatars.com/api/?name=System+Admin&background=6366f1&color=fff" alt="Admin" className={`h-9 w-9 rounded-full shadow-sm border ${borderColor}`} />
               <div className="hidden md:block text-sm">
                 <p className="font-bold leading-none">System Admin</p>
@@ -2560,7 +2564,7 @@ const AdminDashboard = ({ onLogout }) => {
                            <thead>
                              <tr className={`${subBg}`}>
                                <th className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>Time</th>
-                               {['Monday','Tuesday','Wednesday','Thursday','Friday'].map(d => (
+                               {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(d => (
                                  <th key={d} className={`px-4 py-3 text-left text-xs font-bold ${mutedText} uppercase tracking-wider border ${borderSubColor}`}>{d}</th>
                                ))}
                              </tr>
@@ -2590,7 +2594,7 @@ const AdminDashboard = ({ onLogout }) => {
                                  rows.push(
                                    <tr key={hourStr} className={`${hoverBg} transition-colors`}>
                                      <td className={`px-4 py-3 font-bold text-xs border ${borderSubColor} ${mutedText} align-top whitespace-nowrap`}>{hourStr}</td>
-                                     {['Monday','Tuesday','Wednesday','Thursday','Friday'].map(day => {
+                                     {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(day => {
                                         
                                         const schedCoveringHere = timetableSchedules.find(s => {
                                            if (s.dayofweek !== day) return false;
@@ -2664,7 +2668,26 @@ const AdminDashboard = ({ onLogout }) => {
                         <h3 className="font-bold text-lg">Attendance Sheet</h3>
                         <p className={`text-xs ${mutedText} mt-1`}>{selectedClass.classname} - {selectedSchedule.subject} ({selectedSchedule.dayofweek})</p>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 mr-2">
+                          <button 
+                            onClick={() => setAttendancePage(p => Math.max(0, p - 1))}
+                            disabled={attendancePage === 0}
+                            className={`p-1.5 rounded-lg transition ${attendancePage === 0 ? 'opacity-50 cursor-not-allowed' : (isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100')}`}
+                          >
+                            <ChevronLeft size={18} />
+                          </button>
+                          <span className="text-xs font-bold whitespace-nowrap px-1">
+                            Semester {attendancePage + 1}
+                          </span>
+                          <button 
+                            onClick={() => setAttendancePage(p => Math.min(1, p + 1))}
+                            disabled={!attendanceData || attendancePage >= 1}
+                            className={`p-1.5 rounded-lg transition ${(!attendanceData || attendancePage >= 1) ? 'opacity-50 cursor-not-allowed' : (isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100')}`}
+                          >
+                            <ChevronRight size={18} />
+                          </button>
+                        </div>
                         {!isEditingAttendance && (
                           <button 
                             onClick={openAddStudentModal}
@@ -2720,20 +2743,38 @@ const AdminDashboard = ({ onLogout }) => {
                             </tbody>
                           </table>
                         </div>
-                    ) : attendanceData ? (
+                    ) : attendanceData ? (() => {
+                      const SESSIONS_PER_SEMESTER = 15;
+                      const currentYear = new Date().getFullYear();
+                      const sem2Start = new Date(currentYear, 3, 20); // 3 = April
+                      const currentSemesterSessions = attendancePage === 0 
+                        ? attendanceData.sessions.filter(s => new Date(s.sessiondate) < sem2Start)
+                        : attendanceData.sessions.filter(s => new Date(s.sessiondate) >= sem2Start);
+                      const paginatedSessions = currentSemesterSessions.slice(0, SESSIONS_PER_SEMESTER);
+                      const padLength = Math.max(0, SESSIONS_PER_SEMESTER - paginatedSessions.length);
+                      
+                      return (
                       <div className="overflow-x-auto custom-scrollbar pb-6">
                         <table className={`w-full text-[12px] text-left whitespace-nowrap border-collapse border ${borderSubColor} ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
                           <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
                             <tr>
                               <th className={`px-3 py-1.5 sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>Student Name</th>
-                              {attendanceData.sessions.map(s => (
+                              {paginatedSessions.map(s => (
                                 <th key={s.sessionid} className={`px-2 py-1.5 text-center border ${borderSubColor}`}>{new Date(s.sessiondate).toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}</th>
                               ))}
-                              {Array.from({ length: Math.max(0, 15 - attendanceData.sessions.length) }).map((_, i) => {
+                              {Array.from({ length: padLength }).map((_, i) => {
                                 let startDate = new Date();
-                                if (attendanceData.sessions.length > 0) {
-                                  startDate = new Date(attendanceData.sessions[attendanceData.sessions.length - 1].sessiondate);
+                                if (paginatedSessions.length > 0) {
+                                  startDate = new Date(paginatedSessions[paginatedSessions.length - 1].sessiondate);
                                   startDate.setDate(startDate.getDate() + 7);
+                                } else if (attendancePage === 1) {
+                                  const currentYear = new Date().getFullYear();
+                                  startDate = new Date(currentYear, 3, 20); // 3 = April (0-indexed)
+                                  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                  const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek);
+                                  if (targetDayIndex !== -1) {
+                                    while (startDate.getDay() !== targetDayIndex) startDate.setDate(startDate.getDate() + 1);
+                                  }
                                 } else {
                                   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                                   const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek);
@@ -2757,20 +2798,33 @@ const AdminDashboard = ({ onLogout }) => {
                                 <td className={`px-3 py-1.5 font-bold sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>
                                   {student.fullname}
                                 </td>
-                                {attendanceData.sessions.map(session => {
+                                {paginatedSessions.map(session => {
                                   const key = `${student.studentid}_${session.sessionid}`;
                                   const isEdited = !!editedAttendance[key];
                                   const record = attendanceData.attendance.find(a => a.studentid === student.studentid && a.sessionid === session.sessionid);
-                                  const currentStatus = isEdited ? editedAttendance[key].status : (record ? record.status : '-');
                                   
+                                  let defaultVal = '-';
+                                  if (record) {
+                                    defaultVal = record.status;
+                                  } else {
+                                    const sessionDate = new Date(session.sessiondate);
+                                    const today = new Date();
+                                    sessionDate.setHours(0, 0, 0, 0);
+                                    today.setHours(0, 0, 0, 0);
+                                    if (sessionDate <= today) {
+                                      defaultVal = 'Absent';
+                                    }
+                                  }
+                                  
+                                  const val = isEdited ? editedAttendance[key].status : defaultVal;
                                   let statusColor = mutedText;
-                                  if (currentStatus === 'Present') statusColor = isDark ? 'text-green-400' : 'text-green-600';
-                                  else if (currentStatus === 'Absent') statusColor = isDark ? 'text-red-400' : 'text-red-600';
-                                  else if (currentStatus === 'Late') statusColor = isDark ? 'text-yellow-400' : 'text-amber-500';
-                                  else if (currentStatus === 'Permission') statusColor = isDark ? 'text-blue-400' : 'text-blue-600';
+                                  if (val === 'Present') statusColor = isDark ? 'text-green-400' : 'text-green-600';
+                                  else if (val === 'Absent') statusColor = isDark ? 'text-red-400' : 'text-red-600';
+                                  else if (val === 'Late') statusColor = isDark ? 'text-yellow-400' : 'text-amber-500';
+                                  else if (val === 'Permission') statusColor = isDark ? 'text-blue-400' : 'text-blue-600';
                                   
                                   const editedBg = isEdited ? (isDark ? 'bg-indigo-500/20' : 'bg-indigo-50') : '';
-                                  const displayChar = currentStatus === 'Present' ? '1' : (currentStatus === '-' ? '' : currentStatus.charAt(0));
+                                  const displayChar = val === 'Present' ? '1' : (val === '-' ? '' : val.charAt(0));
 
                                   return (
                                     <td 
@@ -2808,7 +2862,7 @@ const AdminDashboard = ({ onLogout }) => {
                                     </td>
                                   );
                                 })}
-                                {Array.from({ length: Math.max(0, 15 - attendanceData.sessions.length) }).map((_, i) => (
+                                {Array.from({ length: padLength }).map((_, i) => (
                                   <td key={`empty-td-${i}`} className={`px-2 py-1.5 border ${borderSubColor}`}>
                                     <span className="opacity-0 select-none">-</span>
                                   </td>
@@ -2816,12 +2870,13 @@ const AdminDashboard = ({ onLogout }) => {
                               </tr>
                             ))}
                             {attendanceData.students.length === 0 && (
-                              <tr><td colSpan={Math.max(15, attendanceData.sessions.length) + 1} className="text-center py-6 font-bold text-gray-500">No students enrolled.</td></tr>
+                              <tr><td colSpan={16} className="text-center py-6 font-bold text-gray-500">No students enrolled.</td></tr>
                             )}
                           </tbody>
                         </table>
                       </div>
-                    ) : null}
+                      );
+                    })() : null}
                   </div>
                 ) : selectedClass ? (
                   <div>
@@ -2868,7 +2923,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <h3 className="font-bold text-lg">Active Classes</h3>
                         <p className={`text-xs ${mutedText} mt-1`}>Manage rosters and view attendance sheets.</p>
                       </div>
-                      <button onClick={() => { setEditingClass(null); setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '' }); setShowCreateClassModal(true); }} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
+                      <button onClick={() => { setEditingClass(null); setNewClass({ classcode: '', classname: '', academicyear: '2025-2026', semester: 1, majorid: '', startdate: '', enddate: '' }); setShowCreateClassModal(true); }} className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}><Plus size={16} className="inline mr-1" /> Create Class</button>
                     </div>
                     {isClassesLoading ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
@@ -2943,6 +2998,16 @@ const AdminDashboard = ({ onLogout }) => {
                           <div>
                             <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Semester</label>
                             <input type="number" min="1" max="10" value={newClass.semester} onChange={(e) => setNewClass({...newClass, semester: e.target.value})} className={inputStyle} required />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Start Date</label>
+                            <input type="date" value={newClass.startdate ? newClass.startdate.split('T')[0] : ''} onChange={(e) => setNewClass({...newClass, startdate: e.target.value})} className={inputStyle} />
+                          </div>
+                          <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>End Date</label>
+                            <input type="date" value={newClass.enddate ? newClass.enddate.split('T')[0] : ''} onChange={(e) => setNewClass({...newClass, enddate: e.target.value})} className={inputStyle} />
                           </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-8">
@@ -3245,6 +3310,122 @@ const AdminDashboard = ({ onLogout }) => {
                     </div>
                   </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeView === 'profile' && (
+              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Left Column (Sidebar) */}
+                  <div className={`${cardStyle} flex flex-col items-center relative overflow-hidden p-0 h-fit`}>
+                    <div className={`h-24 w-full ${isDark ? 'bg-indigo-900/40' : 'bg-blue-100'}`}></div>
+                    <div className="relative -mt-12 flex justify-center w-full">
+                      <div className={`h-24 w-24 rounded-full border-4 ${isDark ? 'border-[#1a1a1a] bg-indigo-600' : 'border-white bg-indigo-100'} flex items-center justify-center text-3xl font-bold ${isDark ? 'text-white' : 'text-indigo-600'}`}>
+                        SA
+                      </div>
+                      <div className={`absolute bottom-0 right-[50%] translate-x-8 translate-y-1 h-8 w-8 rounded-full border-2 ${isDark ? 'border-[#1a1a1a] bg-slate-800' : 'border-white bg-gray-100'} flex items-center justify-center cursor-pointer hover:opacity-80 transition shadow-sm`}>
+                        <Camera size={14} className={mutedText} />
+                      </div>
+                    </div>
+                    <div className="p-6 text-center w-full">
+                      <h2 className={`text-xl font-bold flex items-center justify-center gap-2 ${textColor}`}>
+                        System Admin <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                      </h2>
+                      <p className={`text-sm ${mutedText} mt-1`}>admin@sas.edu</p>
+                      <div className={`mt-4 inline-block px-3 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-50 text-indigo-700'}`}>
+                        Active administrator
+                      </div>
+                      <button className={`mt-6 w-full py-2 rounded-xl text-xs font-bold border transition ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50 text-gray-800'}`}>
+                        Choose photo
+                      </button>
+
+                      <div className={`mt-8 text-left p-4 rounded-xl ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider ${mutedText}`}>Admin ID</p>
+                        <div className="flex justify-between items-center mt-1">
+                          <p className={`font-bold text-sm ${textColor}`}>A0001</p>
+                          <button className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${isDark ? 'border-white/10 hover:bg-white/10 text-white' : 'border-gray-200 bg-white hover:bg-gray-100 text-gray-700'}`}>Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex items-start gap-3 text-left">
+                        <ShieldCheck size={20} className="text-green-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className={`font-bold text-sm ${textColor}`}>Full access enabled</p>
+                          <p className={`text-xs ${mutedText} mt-0.5`}>All system privileges</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column (Cards) */}
+                  <div className="col-span-1 md:col-span-2 space-y-6">
+                    {/* Card 1 */}
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className={`font-bold text-lg ${textColor}`}>Personal information</h3>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-700'}`}>Verified</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Full name</p>
+                          <p className={`font-bold text-sm ${textColor}`}>System Admin</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Username</p>
+                          <p className={`font-bold text-sm ${textColor}`}>admin</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Email address</p>
+                          <p className={`font-bold text-sm ${textColor}`}>admin@sas.edu</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 2 */}
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className={`font-bold text-lg ${textColor}`}>Employment details</h3>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>Administrator</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Admin ID</p>
+                          <p className={`font-bold text-sm ${textColor}`}>A0001</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Department</p>
+                          <p className={`font-bold text-sm ${textColor}`}>IT & Management</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Role</p>
+                          <p className={`font-bold text-sm ${textColor}`}>System Administrator</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3 */}
+                    <div className={`${cardStyle}`}>
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className={`font-bold text-lg ${textColor}`}>System details</h3>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-700'}`}>Active</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Managed classes</p>
+                          <p className={`font-bold text-sm ${textColor}`}>{trackingClasses ? trackingClasses.length : 0}</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>Managed users</p>
+                          <p className={`font-bold text-sm ${textColor}`}>{users ? users.length : 0}</p>
+                        </div>
+                        <div>
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider ${mutedText} mb-1.5`}>System version</p>
+                          <p className={`font-bold text-sm ${textColor}`}>v1.2.0 (Stable)</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

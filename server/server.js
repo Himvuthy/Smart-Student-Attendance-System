@@ -362,7 +362,7 @@ app.get('/api/majors', async (req, res) => {
 app.get('/api/classes', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT c.classid, c.classname, c.classcode, 
+      SELECT c.*, 
         (SELECT COUNT(*) FROM enrollment e WHERE e.classid = c.classid) AS student_count,
         (SELECT ent.fullname FROM lecturer l JOIN entity ent ON l.eid = ent.eid WHERE l.classid = c.classid LIMIT 1) as primary_lecturer
       FROM class c
@@ -375,17 +375,17 @@ app.get('/api/classes', async (req, res) => {
 });
 
 app.post('/api/classes', async (req, res) => {
-  const { classcode, classname, academicyear, semester, majorid } = req.body;
+  const { classcode, classname, academicyear, semester, majorid, startdate, enddate } = req.body;
   if (!classcode || !classname) {
     return res.status(400).json({ error: 'Class code and name are required' });
   }
 
   try {
     const result = await pool.query(`
-      INSERT INTO class (classcode, classname, academicyear, semester, majorid)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING classid, classcode, classname
-    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null]);
+      INSERT INTO class (classcode, classname, academicyear, semester, majorid, startdate, enddate)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING classid, classcode, classname, startdate, enddate
+    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, startdate || null, enddate || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -396,7 +396,7 @@ app.post('/api/classes', async (req, res) => {
 
 app.put('/api/classes/:classid', async (req, res) => {
   const { classid } = req.params;
-  const { classcode, classname, academicyear, semester, majorid } = req.body;
+  const { classcode, classname, academicyear, semester, majorid, startdate, enddate } = req.body;
   if (!classcode || !classname || !majorid) {
     return res.status(400).json({ error: 'Class code, name, and major are required' });
   }
@@ -404,10 +404,10 @@ app.put('/api/classes/:classid', async (req, res) => {
   try {
     const result = await pool.query(`
       UPDATE class 
-      SET classcode = $1, classname = $2, academicyear = $3, semester = $4, majorid = $5
-      WHERE classid = $6
-      RETURNING classid, classcode, classname
-    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, classid]);
+      SET classcode = $1, classname = $2, academicyear = $3, semester = $4, majorid = $5, startdate = $6, enddate = $7
+      WHERE classid = $8
+      RETURNING classid, classcode, classname, startdate, enddate
+    `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, startdate || null, enddate || null, classid]);
     
     if (result.rows.length === 0) return res.status(404).json({ error: 'Class not found' });
     res.json({ success: true, data: result.rows[0] });
