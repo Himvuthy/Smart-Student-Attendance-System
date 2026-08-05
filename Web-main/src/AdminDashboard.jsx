@@ -2465,6 +2465,8 @@ const AdminDashboard = ({ onLogout }) => {
 
                             if (filters.eid && !String(e.eid).toLowerCase().includes(filters.eid)) return false;
                             if (filters.uid && !String(e.userid || '').toLowerCase().includes(filters.uid)) return false;
+                            if (filters.rid && String(e.roleid) !== filters.rid) return false;
+                            if (filters.roleid && String(e.roleid) !== filters.roleid) return false;
                             if (filters.role) {
                               const r = filters.role;
                               const isTShortcut = r === 't' || r === 'teacher' || r === 'lecturer';
@@ -2763,6 +2765,10 @@ const AdminDashboard = ({ onLogout }) => {
                         if (filters.eid && !String(student.eid || '').toLowerCase().includes(filters.eid)) return false;
                         if (filters.uid && !String(student.userid || '').toLowerCase().includes(filters.uid)) return false;
                         if (filters.gender && (!student.gender || student.gender.toLowerCase() !== filters.gender)) return false;
+                        
+                        if (filters.rid && filters.rid !== '4') return false;
+                        if (filters.roleid && filters.roleid !== '4') return false;
+                        if (filters.role && !['s', 'student'].includes(filters.role)) return false;
                         
                         if (text && !(student.fullname || '').toLowerCase().includes(text) && !String(student.studentid || '').toLowerCase().includes(text) && !String(student.eid || '').toLowerCase().includes(text) && !String(student.userid || '').toLowerCase().includes(text)) return false;
                         
@@ -3984,6 +3990,10 @@ const AdminDashboard = ({ onLogout }) => {
                       if (filters.eid && !String(s.eid || '').toLowerCase().includes(filters.eid)) return false;
                       if (filters.uid && !String(s.userid || '').toLowerCase().includes(filters.uid)) return false;
                       if (filters.gender && (!s.gender || s.gender.toLowerCase() !== filters.gender)) return false;
+                      
+                      if (filters.rid && filters.rid !== '4') return false;
+                      if (filters.roleid && filters.roleid !== '4') return false;
+                      if (filters.role && !['s', 'student'].includes(filters.role)) return false;
                       
                       if (text && !(s.fullname || '').toLowerCase().includes(text) && !String(s.studentid || '').toLowerCase().includes(text) && !String(s.eid || '').toLowerCase().includes(text) && !String(s.userid || '').toLowerCase().includes(text)) return false;
                       
