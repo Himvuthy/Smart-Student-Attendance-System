@@ -397,6 +397,7 @@ const AdminDashboard = ({ onLogout }) => {
   const isLoading = false;
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [biometricStudents, setBiometricStudents] = useState([]);
+  const [biometricSearchQuery, setBiometricSearchQuery] = useState('');
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const [hardwareDevices, setHardwareDevices] = useState([]);
   const [showRegisterDeviceModal, setShowRegisterDeviceModal] = useState(false);
@@ -517,16 +518,35 @@ const AdminDashboard = ({ onLogout }) => {
       setIsBiometricLoading(true);
     }
     try {
-      const res = await fetch(`${baseUrl}/api/biometric/students`);
-      if (res.ok) {
+        const res = await fetch(`${baseUrl}/api/biometric/students`);
         const data = await res.json();
         setBiometricStudents(data);
         dataCache.current.biometric = data;
+      } catch (err) {
+        console.error("Failed to fetch biometric students", err);
+      } finally {
+        setIsBiometricLoading(false);
+      }
+  };
+
+  const handleDeleteBiometric = async (studentid) => {
+    if (!confirm('Are you sure you want to delete this fingerprint record?')) return;
+    try {
+      const res = await fetch(`${baseUrl}/api/biometric/students/${studentid}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBiometricStudents(prev => prev.map(s => s.studentid === studentid ? { ...s, biometricid: null, fingerindex: null } : s));
+        if (dataCache.current.biometric) {
+           dataCache.current.biometric = dataCache.current.biometric.map(s => s.studentid === studentid ? { ...s, biometricid: null, fingerindex: null } : s);
+        }
+        setTerminalLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), action: 'SUCCESS', msg: `Deleted fingerprint for student ID ${studentid}`, color: 'text-green-400' }]);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete fingerprint');
       }
     } catch (e) {
       console.error(e);
+      alert('Error deleting fingerprint');
     }
-    setIsBiometricLoading(false);
   };
 
   const fetchHardwareDevices = async () => {
@@ -2694,7 +2714,13 @@ const AdminDashboard = ({ onLogout }) => {
                   <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
                     <div className="relative flex-1 sm:flex-initial">
                         <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedText}`} />
-                        <input type="text" placeholder="Search ID or Name..." className={`${inputStyle} pl-10 h-full w-full sm:w-60 bg-transparent`} />
+                        <input 
+                          type="text" 
+                          placeholder="Search ID or Name..." 
+                          value={biometricSearchQuery}
+                          onChange={(e) => setBiometricSearchQuery(e.target.value)}
+                          className={`${inputStyle} pl-10 h-full w-full sm:w-60 bg-transparent`} 
+                        />
                     </div>
                   </div>
                 </div>
@@ -2720,7 +2746,28 @@ const AdminDashboard = ({ onLogout }) => {
                       ) : biometricStudents.length === 0 ? (
                         <tr><td colSpan="5" className={`text-center py-8 font-bold ${mutedText}`}>No students found.</td></tr>
                       ) : (
-                      biometricStudents.map((student) => {
+                      biometricStudents.filter(student => {
+                        const parts = biometricSearchQuery.split(' ');
+                        const filters = {};
+                        let text = '';
+                        parts.forEach(part => {
+                          if (part.includes('=')) {
+                            const [k, v] = part.split('=');
+                            if (k && v) filters[k.toLowerCase()] = v.toLowerCase();
+                          } else {
+                            text += part + ' ';
+                          }
+                        });
+                        text = text.trim().toLowerCase();
+                        
+                        if (filters.eid && !String(student.eid || '').toLowerCase().includes(filters.eid)) return false;
+                        if (filters.uid && !String(student.userid || '').toLowerCase().includes(filters.uid)) return false;
+                        if (filters.gender && (!student.gender || student.gender.toLowerCase() !== filters.gender)) return false;
+                        
+                        if (text && !(student.fullname || '').toLowerCase().includes(text) && !String(student.studentid || '').toLowerCase().includes(text) && !String(student.eid || '').toLowerCase().includes(text) && !String(student.userid || '').toLowerCase().includes(text)) return false;
+                        
+                        return true;
+                      }).map((student) => {
                         const isRegistered = student.biometricid !== null && student.biometricid !== undefined && student.biometricid !== ''; 
 
                         return (
@@ -2763,6 +2810,7 @@ const AdminDashboard = ({ onLogout }) => {
                               <button
                                 title="Delete Fingerprint"
                                 disabled={!isRegistered}
+                                onClick={() => handleDeleteBiometric(student.studentid)}
                                 className={`p-2 rounded-lg transition ${!isRegistered ? 'opacity-30 cursor-not-allowed' : `${subBg} hover:bg-red-500/10 text-red-500`}`}
                               >
                                 <Trash2 size={16} />

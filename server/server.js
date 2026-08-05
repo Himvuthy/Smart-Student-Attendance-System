@@ -179,6 +179,18 @@ app.get('/api/biometric/students', async (req, res) => {
   }
 });
 
+// DELETE biometric student fingerprint
+app.delete('/api/biometric/students/:studentid', async (req, res) => {
+  try {
+    const { studentid } = req.params;
+    await pool.query('DELETE FROM biometric WHERE studentid = $1', [studentid]);
+    res.json({ success: true, message: 'Fingerprint deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting biometric:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET admin dashboard stats
 app.get('/api/admin/dashboard', async (req, res) => {
   try {
