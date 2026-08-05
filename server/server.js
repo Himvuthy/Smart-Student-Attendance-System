@@ -524,6 +524,21 @@ app.post('/api/classes', async (req, res) => {
   }
 });
 
+app.delete('/api/classes/:classid', async (req, res) => {
+  const { classid } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM class WHERE classid = $1 RETURNING *', [classid]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    await logSystemAction('DELETE_CLASS', `Class ${result.rows[0].classcode} was deleted`, 'text-red-500');
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete class. It may have dependent records.' });
+  }
+});
+
 app.put('/api/classes/:classid', async (req, res) => {
   const { classid } = req.params;
   const { classcode, classname, academicyear, semester, majorid, startdate, enddate } = req.body;

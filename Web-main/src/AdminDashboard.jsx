@@ -3155,12 +3155,20 @@ const AdminDashboard = ({ onLogout }) => {
                               >
                                 Edit
                               </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
-                              >
-                                Enroll Student
-                              </button>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.classid); }} 
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors bg-red-500 hover:bg-red-600`}
+                                >
+                                  Delete
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                                >
+                                  Enroll Student
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
