@@ -94,6 +94,23 @@ app.get('/api/logs', async (req, res) => {
   }
 });
 
+app.post('/api/logs', async (req, res) => {
+  try {
+    const { action, message, color } = req.body;
+    if (!action || !message) {
+      return res.status(400).json({ error: 'Action and message are required' });
+    }
+    await pool.query(
+      'INSERT INTO system_logs (action, message, color) VALUES ($1, $2, $3)',
+      [action, message, color || 'text-gray-400']
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving log:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {

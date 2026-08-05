@@ -219,9 +219,30 @@ const AdminDashboard = ({ onLogout }) => {
 
   // Terminal UI State
   const [activeTerminalTab, setActiveTerminalTab] = useState('log');
-  const [terminalLogs, setTerminalLogs] = useState([
+  const [terminalLogs, _setTerminalLogs] = useState([
     { time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: 'Dashboard initialized. Monitoring backend events.', color: 'text-blue-400' }
   ]);
+
+  const setTerminalLogs = (actionOrValue) => {
+    if (typeof actionOrValue === 'function') {
+      _setTerminalLogs(prev => {
+        const nextState = actionOrValue(prev);
+        const newLogs = nextState.slice(prev.length);
+        newLogs.forEach(log => {
+          if (['ADMIN_QUERY', 'SUCCESS', 'ERROR'].includes(log.action)) {
+            fetch(`${baseUrl}/api/logs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: log.action, message: log.msg, color: log.color })
+            }).catch(e => console.error(e));
+          }
+        });
+        return nextState;
+      });
+    } else {
+      _setTerminalLogs(actionOrValue);
+    }
+  };
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef(null);
   const notificationRef = useRef(null);
