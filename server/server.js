@@ -676,19 +676,34 @@ app.post('/api/classes/:classid/enroll', async (req, res) => {
 
 app.put('/api/attendance/bulk', async (req, res) => {
   try {
-    const { updates } = req.body; 
+    const { updates, scheduleid } = req.body; 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       for (const update of updates) {
+        let sessionId = update.sessionid;
+        
+        if (!sessionId && update.sessiondate && scheduleid) {
+          // Find or create session
+          const sessionRes = await client.query('SELECT sessionid FROM session WHERE scheduleid = $1 AND sessiondate = $2', [scheduleid, update.sessiondate]);
+          if (sessionRes.rows.length > 0) {
+            sessionId = sessionRes.rows[0].sessionid;
+          } else {
+            const insertRes = await client.query('INSERT INTO session (scheduleid, sessiondate) VALUES ($1, $2) RETURNING sessionid', [scheduleid, update.sessiondate]);
+            sessionId = insertRes.rows[0].sessionid;
+          }
+        }
+
+        if (!sessionId) continue;
+
         const { rowCount } = await client.query(
           'UPDATE attendance SET status = $1, attendedat = CURRENT_TIMESTAMP WHERE studentid = $2 AND sessionid = $3',
-          [update.status, update.studentid, update.sessionid]
+          [update.status, update.studentid, sessionId]
         );
         if (rowCount === 0) {
           await client.query(
             'INSERT INTO attendance (studentid, sessionid, status, attendedat) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
-            [update.studentid, update.sessionid, update.status]
+            [update.studentid, sessionId, update.status]
           );
         }
       }

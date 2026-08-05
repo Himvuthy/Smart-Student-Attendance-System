@@ -996,44 +996,35 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const saveAttendanceChanges = async () => {
-    const updates = Object.values(editedAttendance);
+    const updates = Object.values(editedAttendance).map(update => ({
+      ...update,
+      scheduleid: selectedSchedule?.scheduleid
+    }));
     if (updates.length === 0) {
       setIsEditingAttendance(false);
       return;
     }
-    
-    // OPTIMISTIC RENDER
-    const previousAttendanceData = { ...attendanceData };
-    const newData = { ...attendanceData, attendance: [...(attendanceData.attendance || [])] };
-    updates.forEach(update => {
-      const idx = newData.attendance.findIndex(a => a.studentid === update.studentid && a.sessionid === update.sessionid);
-      if (idx !== -1) {
-        newData.attendance[idx] = { ...newData.attendance[idx], status: update.status };
-      } else {
-        newData.attendance.push({ studentid: update.studentid, sessionid: update.sessionid, status: update.status, minutelate: 0 });
-      }
-    });
-    setAttendanceData(newData);
-    setIsEditingAttendance(false);
     
     setIsSavingAttendance(true);
     try {
       const res = await fetch(`${baseUrl}/api/attendance/bulk`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates })
+        body: JSON.stringify({ updates, scheduleid: selectedSchedule?.scheduleid })
       });
       if (!res.ok) throw new Error('Failed to save attendance');
       
-      if (dataCache.current.attendance[selectedSchedule.scheduleid]) {
-         dataCache.current.attendance[selectedSchedule.scheduleid] = newData;
+      if (selectedSchedule) {
+        delete dataCache.current.attendance[selectedSchedule.scheduleid];
+        await handleScheduleClick(selectedSchedule);
       }
+      
       setEditedAttendance({});
+      setIsEditingAttendance(false);
     } catch (e) {
       console.error(e);
-      alert('Failed to save attendance, changes reverted.');
-      setAttendanceData(previousAttendanceData); // Rollback
-      setIsEditingAttendance(true); // Re-open edit mode
+      alert('Failed to save attendance.');
+      setIsEditingAttendance(true);
     }
     setIsSavingAttendance(false);
   };
@@ -2745,13 +2736,30 @@ const AdminDashboard = ({ onLogout }) => {
                         </div>
                     ) : attendanceData ? (() => {
                       const SESSIONS_PER_SEMESTER = 15;
-                      const currentYear = new Date().getFullYear();
-                      const sem2Start = new Date(currentYear, 3, 20); // 3 = April
-                      const currentSemesterSessions = attendancePage === 0 
-                        ? attendanceData.sessions.filter(s => new Date(s.sessiondate) < sem2Start)
-                        : attendanceData.sessions.filter(s => new Date(s.sessiondate) >= sem2Start);
-                      const paginatedSessions = currentSemesterSessions.slice(0, SESSIONS_PER_SEMESTER);
-                      const padLength = Math.max(0, SESSIONS_PER_SEMESTER - paginatedSessions.length);
+                      
+                      let baseDate = new Date();
+                      if (selectedClass && selectedClass.startdate) {
+                        baseDate = new Date(selectedClass.startdate);
+                      } else {
+                        baseDate = new Date(new Date().getFullYear(), 0, 1);
+                      }
+                      
+                      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek || 'Monday');
+                      
+                      if (targetDayIndex !== -1) {
+                        while (baseDate.getDay() !== targetDayIndex) {
+                          baseDate.setDate(baseDate.getDate() + 1);
+                        }
+                      }
+                      
+                      baseDate.setDate(baseDate.getDate() + (attendancePage * SESSIONS_PER_SEMESTER * 7));
+                      
+                      const generatedDates = Array.from({ length: SESSIONS_PER_SEMESTER }).map((_, i) => {
+                        const d = new Date(baseDate);
+                        d.setDate(baseDate.getDate() + (i * 7));
+                        return d;
+                      });
                       
                       return (
                       <div className="overflow-x-auto custom-scrollbar pb-6">
@@ -2759,37 +2767,11 @@ const AdminDashboard = ({ onLogout }) => {
                           <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider`}>
                             <tr>
                               <th className={`px-3 py-1.5 sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>Student Name</th>
-                              {paginatedSessions.map(s => (
-                                <th key={s.sessionid} className={`px-2 py-1.5 text-center border ${borderSubColor}`}>{new Date(s.sessiondate).toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}</th>
+                              {generatedDates.map((dateObj, i) => (
+                                <th key={i} className={`px-2 py-1.5 text-center border ${borderSubColor} min-w-[80px]`}>
+                                  {dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}
+                                </th>
                               ))}
-                              {Array.from({ length: padLength }).map((_, i) => {
-                                let startDate = new Date();
-                                if (paginatedSessions.length > 0) {
-                                  startDate = new Date(paginatedSessions[paginatedSessions.length - 1].sessiondate);
-                                  startDate.setDate(startDate.getDate() + 7);
-                                } else if (attendancePage === 1) {
-                                  const currentYear = new Date().getFullYear();
-                                  startDate = new Date(currentYear, 3, 20); // 3 = April (0-indexed)
-                                  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                  const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek);
-                                  if (targetDayIndex !== -1) {
-                                    while (startDate.getDay() !== targetDayIndex) startDate.setDate(startDate.getDate() + 1);
-                                  }
-                                } else {
-                                  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                  const targetDayIndex = days.indexOf(selectedSchedule?.dayofweek);
-                                  if (targetDayIndex !== -1) {
-                                    while (startDate.getDay() !== targetDayIndex) startDate.setDate(startDate.getDate() + 1);
-                                  }
-                                }
-                                const nextDate = new Date(startDate);
-                                nextDate.setDate(startDate.getDate() + (i * 7));
-                                return (
-                                  <th key={`empty-th-${i}`} className={`px-2 py-1.5 text-center border ${borderSubColor} min-w-[80px]`}>
-                                    {nextDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}
-                                  </th>
-                                );
-                              })}
                             </tr>
                           </thead>
                           <tbody>
@@ -2798,20 +2780,24 @@ const AdminDashboard = ({ onLogout }) => {
                                 <td className={`px-3 py-1.5 font-bold sticky left-0 z-10 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'} border ${borderSubColor}`}>
                                   {student.fullname}
                                 </td>
-                                {paginatedSessions.map(session => {
-                                  const key = `${student.studentid}_${session.sessionid}`;
+                                {generatedDates.map((dateObj, i) => {
+                                  const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+                                  const key = `${student.studentid}_${dateStr}`;
+                                  
+                                  const session = attendanceData.sessions.find(s => s.sessiondate && s.sessiondate.startsWith(dateStr));
+                                  const record = session ? attendanceData.attendance.find(a => a.studentid === student.studentid && a.sessionid === session.sessionid) : null;
+                                  
                                   const isEdited = !!editedAttendance[key];
-                                  const record = attendanceData.attendance.find(a => a.studentid === student.studentid && a.sessionid === session.sessionid);
                                   
                                   let defaultVal = '-';
                                   if (record) {
                                     defaultVal = record.status;
                                   } else {
-                                    const sessionDate = new Date(session.sessiondate);
                                     const today = new Date();
-                                    sessionDate.setHours(0, 0, 0, 0);
                                     today.setHours(0, 0, 0, 0);
-                                    if (sessionDate <= today) {
+                                    const cellDate = new Date(dateObj);
+                                    cellDate.setHours(0, 0, 0, 0);
+                                    if (cellDate <= today) {
                                       defaultVal = 'Absent';
                                     }
                                   }
@@ -2820,7 +2806,7 @@ const AdminDashboard = ({ onLogout }) => {
                                   let statusColor = mutedText;
                                   if (val === 'Present') statusColor = isDark ? 'text-green-400' : 'text-green-600';
                                   else if (val === 'Absent') statusColor = isDark ? 'text-red-400' : 'text-red-600';
-                                  else if (val === 'Late') statusColor = isDark ? 'text-yellow-400' : 'text-amber-500';
+                                  else if (val === 'Late') statusColor = isDark ? 'text-amber-400' : 'text-amber-600';
                                   else if (val === 'Permission') statusColor = isDark ? 'text-blue-400' : 'text-blue-600';
                                   
                                   const editedBg = isEdited ? (isDark ? 'bg-indigo-500/20' : 'bg-indigo-50') : '';
@@ -2828,45 +2814,37 @@ const AdminDashboard = ({ onLogout }) => {
 
                                   return (
                                     <td 
-                                      key={session.sessionid} 
-                                      className={`p-0 text-center font-bold border ${borderSubColor} ${editedBg} align-middle`}
+                                      key={key} 
+                                      className={`p-0 text-center font-bold border ${borderSubColor} ${editedBg} align-middle min-w-[60px]`}
                                     >
                                       {isEditingAttendance ? (
                                         <input 
                                           type="text" 
-                                          maxLength={1}
+                                          className={`w-full text-center py-1.5 bg-transparent outline-none ${statusColor}`}
                                           value={displayChar}
-                                          className={`w-full h-full min-w-[30px] py-1.5 text-center bg-transparent outline-none focus:ring-2 focus:ring-indigo-500 font-bold ${statusColor}`}
-                                          onFocus={(e) => e.target.select()}
                                           onChange={(e) => {
-                                            const val = e.target.value.toUpperCase();
-                                            let nextStatus = '-';
-                                            if (val === '1') nextStatus = 'Present';
-                                            else if (val === 'P') nextStatus = 'Permission';
-                                            else if (val === 'L') nextStatus = 'Late';
-                                            else if (val === 'A') nextStatus = 'Absent';
-                                            else if (val === '') nextStatus = '-';
-                                            else nextStatus = '-'; // ignore invalid chars
+                                            const char = e.target.value.toUpperCase().slice(-1);
+                                            let nextStatus = val;
+                                            if (char === 'P' || char === '1') nextStatus = 'Present';
+                                            else if (char === 'A') nextStatus = 'Absent';
+                                            else if (char === 'L') nextStatus = 'Late';
+                                            else if (char === 'E') nextStatus = 'Permission';
+                                            else if (char === '' || char === '-') nextStatus = '-';
                                             
                                             setEditedAttendance(prev => ({
                                               ...prev,
-                                              [key]: { studentid: student.studentid, sessionid: session.sessionid, status: nextStatus }
+                                              [key]: { studentid: student.studentid, sessiondate: dateStr, sessionid: session ? session.sessionid : null, status: nextStatus }
                                             }));
                                           }}
                                         />
                                       ) : (
                                         <div className={`px-2 py-1.5 ${statusColor}`}>
-                                          {displayChar || '—'}
+                                          {displayChar || '-'}
                                         </div>
                                       )}
                                     </td>
                                   );
                                 })}
-                                {Array.from({ length: padLength }).map((_, i) => (
-                                  <td key={`empty-td-${i}`} className={`px-2 py-1.5 border ${borderSubColor}`}>
-                                    <span className="opacity-0 select-none">-</span>
-                                  </td>
-                                ))}
                               </tr>
                             ))}
                             {attendanceData.students.length === 0 && (
