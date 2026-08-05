@@ -181,6 +181,36 @@ const AdminDashboard = ({ onLogout }) => {
   const terminalEndRef = useRef(null);
   const notificationRef = useRef(null);
 
+  // Poll for system logs
+  useEffect(() => {
+    let interval;
+    if (activeView === 'logs' && activeTerminalTab === 'log') {
+      const fetchLogs = async () => {
+        try {
+          const res = await fetch(`${baseUrl}/api/logs`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length > 0) {
+              const mappedLogs = data.map(log => ({
+                id: log.id,
+                time: new Date(log.timestamp).toLocaleTimeString([], { hour12: false }),
+                action: log.action,
+                msg: log.message,
+                color: log.color || 'text-gray-400'
+              })).reverse();
+              setTerminalLogs([{ time: new Date().toLocaleTimeString(), action: 'SYSTEM', msg: 'Console connected to backend log stream.', color: 'text-blue-400' }, ...mappedLogs]);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch logs:', e);
+        }
+      };
+      fetchLogs();
+      interval = setInterval(fetchLogs, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [activeView, activeTerminalTab]);
+
   // Backup System State
   const [backups, setBackups] = useState([
     { id: 3, name: 'backup_2026-07-15_1200.sql', date: '7/15/2026, 12:00 PM', size: '15.4 MB', isLocked: false },
@@ -1321,7 +1351,7 @@ const AdminDashboard = ({ onLogout }) => {
     classes: 'Class Management',
     hardware: 'Hardware Scanners',
     reports: 'Reports & Backups',
-    logs: 'System Logs',
+    logs: 'Console',
     settings: 'System Settings',
     attendance: 'Attendance Tracking'
   };
@@ -1403,7 +1433,7 @@ const AdminDashboard = ({ onLogout }) => {
             </li>
             <li>
               <button onClick={() => setActiveView('logs')} className={`w-full flex items-center px-4 py-2.5 rounded-lg font-semibold transition-colors ${activeView === 'logs' ? navActiveBg : navInactiveBg}`}>
-                <Terminal className={`w-5 h-5 mr-3 ${activeView === 'logs' ? '' : 'opacity-70'}`} /> System Logs
+                <Terminal className={`w-5 h-5 mr-3 ${activeView === 'logs' ? '' : 'opacity-70'}`} /> Console
               </button>
             </li>
           </ul>

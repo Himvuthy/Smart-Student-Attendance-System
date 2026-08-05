@@ -13,7 +13,7 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
 });
 
-// Auto-create system_settings table on startup
+// Auto-create system_settings and system_logs tables on startup
 (async () => {
   try {
     await pool.query(`
@@ -26,10 +26,33 @@ const pool = new Pool({
     await pool.query(`INSERT INTO system_settings (key, value) VALUES ('late_threshold', '15') ON CONFLICT (key) DO NOTHING`);
     await pool.query(`INSERT INTO system_settings (key, value) VALUES ('absent_threshold', '90') ON CONFLICT (key) DO NOTHING`);
     console.log('system_settings table ready');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_logs (
+        id SERIAL PRIMARY KEY,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        action VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        color VARCHAR(50) DEFAULT 'text-gray-400'
+      )
+    `);
+    console.log('system_logs table ready');
   } catch (err) {
-    console.error('Error initializing system_settings:', err);
+    console.error('Error initializing tables:', err);
   }
 })();
+
+// Log Helper
+const logSystemAction = async (action, message, color = 'text-gray-400') => {
+  try {
+    await pool.query(
+      'INSERT INTO system_logs (action, message, color) VALUES ($1, $2, $3)',
+      [action, message, color]
+    );
+  } catch (err) {
+    console.error('Failed to log system action:', err);
+  }
+};
 
 // GET all settings
 app.get('/api/settings', async (req, res) => {
@@ -56,6 +79,17 @@ app.put('/api/settings', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating setting:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET logs
+app.get('/api/logs', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM system_logs ORDER BY id DESC LIMIT 100');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -285,6 +319,8 @@ app.post('/api/users', async (req, res) => {
         roleid
       }
     });
+    
+    await logSystemAction('ADD_USER', `User ${username} (${fullname}) was added to the system`, 'text-blue-500');
 
   } catch (error) {
     console.error('Error creating user:', error);
@@ -345,6 +381,7 @@ app.post('/api/entities', async (req, res) => {
       await pool.query('INSERT INTO lecturer (eid) VALUES ($1)', [newEid]);
     }
 
+    await logSystemAction('ADD_ENTITY', `Entity ${fullname} was created`, 'text-blue-500');
     res.json({ success: true });
   } catch (error) {
     console.error('Error creating entity:', error);
@@ -375,6 +412,8 @@ app.put('/api/entities/:eid', async (req, res) => {
         [eid, username, email, hashedPassword]
       );
     }
+    
+    await logSystemAction('UPDATE_ENTITY', `Entity ${fullname} (ID: ${eid}) was modified`, 'text-orange-500');
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating entity:', error);
@@ -387,6 +426,8 @@ app.delete('/api/entities/:eid', async (req, res) => {
   try {
     await pool.query('DELETE FROM useraccount WHERE eid = $1', [eid]);
     await pool.query('DELETE FROM entity WHERE eid = $1', [eid]);
+    
+    await logSystemAction('DELETE_ENTITY', `Entity ID ${eid} was deleted from the system`, 'text-red-500');
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting entity:', error);
@@ -434,6 +475,7 @@ app.post('/api/classes', async (req, res) => {
       RETURNING classid, classcode, classname, startdate, enddate
     `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, startdate || null, enddate || null]);
     
+    await logSystemAction('ADD_CLASS', `Class ${classcode} (${classname}) was created`, 'text-blue-500');
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Error creating class:', error);
@@ -457,6 +499,8 @@ app.put('/api/classes/:classid', async (req, res) => {
     `, [classcode, classname, academicyear || '2025-2026', parseInt(semester) || 1, majorid || null, startdate || null, enddate || null, classid]);
     
     if (result.rows.length === 0) return res.status(404).json({ error: 'Class not found' });
+    
+    await logSystemAction('UPDATE_CLASS', `Class ${classcode} was modified`, 'text-orange-500');
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Error updating class:', error);
@@ -1555,6 +1599,9 @@ app.post('/api/hardware/scan', async (req, res) => {
         VALUES ($1, $2, $3, NOW(), $4)
       `, [student.studentid, sessionId, status, dbMinutesLate]);
     }
+    
+    const logColor = status === 'Present' ? 'text-emerald-500' : (status === 'Late' ? 'text-yellow-500' : 'text-red-500');
+    await logSystemAction('ATTENDANCE_SCAN', `${student.fullname} scanned (${status}) for ${activeClass.subject}`, logColor);
 
     res.json({ 
       success: true, 
