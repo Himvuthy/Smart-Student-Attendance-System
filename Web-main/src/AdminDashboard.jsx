@@ -3714,17 +3714,6 @@ const AdminDashboard = ({ onLogout }) => {
                   </section>
 
                   <div className="space-y-5">
-                    <section className={`${cardStyle} p-5`}>
-                      <div className="flex items-center gap-3">
-                        <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-emerald-400/10 text-emerald-300' : 'bg-emerald-50 text-emerald-600'}`}><Fingerprint size={19} /></span>
-                        <div><h3 className="font-extrabold">Fingerprint status</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Your attendance identity</p></div>
-                      </div>
-                      <div className={`mt-4 flex items-center justify-between rounded-xl p-3 ${isDark ? 'bg-emerald-400/[0.08]' : 'bg-emerald-50/70'}`}>
-                        <span className={`flex items-center gap-2 text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}><CheckCircle2 size={15} />Enrolled and ready</span>
-                        <span className={`text-[10px] ${mutedText}`}>Verified</span>
-                      </div>
-                      <button className={`mt-3 w-full rounded-xl border py-2.5 text-xs font-bold transition ${isDark ? 'border-white/10 hover:border-[#60a5fa] hover:text-[#60a5fa]' : 'border-[#e2e8f0] hover:border-[#60a5fa] hover:text-[#2563eb]'}`}>View student profile</button>
-                    </section>
 
                     <section className={`${cardStyle} p-5`}>
                       <div className="flex items-center gap-3">
