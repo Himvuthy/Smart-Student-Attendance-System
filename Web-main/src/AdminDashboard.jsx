@@ -92,6 +92,9 @@ const AdminDashboard = ({ onLogout }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingFormat, setGeneratingFormat] = useState(null);
+  const [lateThreshold, setLateThreshold] = useState(15);
+  const [absentThreshold, setAbsentThreshold] = useState(90);
+  const [isSavingThreshold, setIsSavingThreshold] = useState(false);
 
   const [adminSettings, setAdminSettings] = useState({
     checkInReminders: true,
@@ -111,6 +114,43 @@ const AdminDashboard = ({ onLogout }) => {
   
   const updateSetting = (key, value) => {
     setAdminSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Fetch system settings (thresholds) from backend on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.late_threshold) setLateThreshold(parseInt(data.late_threshold, 10));
+          if (data.absent_threshold) setAbsentThreshold(parseInt(data.absent_threshold, 10));
+        }
+      } catch (e) { console.error('Failed to fetch settings:', e); }
+    };
+    fetchSettings();
+  }, []);
+
+  const saveThresholds = async () => {
+    setIsSavingThreshold(true);
+    try {
+      await fetch(`${baseUrl}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'late_threshold', value: String(lateThreshold) })
+      });
+      await fetch(`${baseUrl}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'absent_threshold', value: String(absentThreshold) })
+      });
+      alert('Thresholds saved successfully!');
+    } catch (e) {
+      console.error('Failed to save thresholds:', e);
+      alert('Failed to save thresholds.');
+    } finally {
+      setIsSavingThreshold(false);
+    }
   };
 
   useEffect(() => {
@@ -3236,8 +3276,18 @@ const AdminDashboard = ({ onLogout }) => {
                     <div className="space-y-6">
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late Threshold (Minutes)</label>
-                        <input type="number" defaultValue="15" className={inputStyle} />
-                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this grace period are marked 'Late'.</p>
+                        <input type="number" min="1" value={lateThreshold} onChange={e => setLateThreshold(parseInt(e.target.value, 10) || 0)} className={inputStyle} />
+                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this many minutes are marked 'Late'.</p>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Absent Threshold (Minutes)</label>
+                        <input type="number" min="1" value={absentThreshold} onChange={e => setAbsentThreshold(parseInt(e.target.value, 10) || 0)} className={inputStyle} />
+                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this many minutes are marked 'Absent'.</p>
+                      </div>
+                      <div>
+                        <button onClick={saveThresholds} disabled={isSavingThreshold} className={`w-full py-2.5 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white ${isSavingThreshold ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          {isSavingThreshold ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><Save size={16} /> Save Thresholds</>}
+                        </button>
                       </div>
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>

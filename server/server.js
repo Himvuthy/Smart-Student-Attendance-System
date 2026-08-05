@@ -13,6 +13,53 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
 });
 
+// Auto-create system_settings table on startup
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value VARCHAR(255) NOT NULL
+      )
+    `);
+    // Seed defaults if they don't exist
+    await pool.query(`INSERT INTO system_settings (key, value) VALUES ('late_threshold', '15') ON CONFLICT (key) DO NOTHING`);
+    await pool.query(`INSERT INTO system_settings (key, value) VALUES ('absent_threshold', '90') ON CONFLICT (key) DO NOTHING`);
+    console.log('system_settings table ready');
+  } catch (err) {
+    console.error('Error initializing system_settings:', err);
+  }
+})();
+
+// GET all settings
+app.get('/api/settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT key, value FROM system_settings');
+    const settings = {};
+    result.rows.forEach(row => { settings[row.key] = row.value; });
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT update a setting
+app.put('/api/settings', async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key || value === undefined) return res.status(400).json({ error: 'key and value are required' });
+    await pool.query(
+      `INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`,
+      [key, String(value)]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating setting:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -1464,6 +1511,17 @@ app.post('/api/hardware/scan', async (req, res) => {
       sessionId = sessionRes.rows[0].sessionid;
     }
 
+    // Fetch late/absent thresholds from system_settings
+    let lateThreshold = 15;  // default fallback
+    let absentThreshold = 90; // default fallback
+    try {
+      const settingsRes = await pool.query(`SELECT key, value FROM system_settings WHERE key IN ('late_threshold', 'absent_threshold')`);
+      settingsRes.rows.forEach(row => {
+        if (row.key === 'late_threshold') lateThreshold = parseInt(row.value, 10);
+        if (row.key === 'absent_threshold') absentThreshold = parseInt(row.value, 10);
+      });
+    } catch (e) { /* use defaults */ }
+
     // Determine status based on time difference
     const parseTimeToMinutes = (timeStr) => {
       const [hours, minutes] = timeStr.split(':').map(Number);
@@ -1477,9 +1535,9 @@ app.post('/api/hardware/scan', async (req, res) => {
     let status = 'Present';
     let dbMinutesLate = null;
     
-    if (minutesLate >= 90) { // 1:30 hour late
+    if (minutesLate >= absentThreshold) {
       status = 'Absent';
-    } else if (minutesLate >= 30) { // 30 min late
+    } else if (minutesLate >= lateThreshold) {
       status = 'Late';
       dbMinutesLate = minutesLate;
     }
