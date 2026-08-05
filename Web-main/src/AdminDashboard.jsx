@@ -91,6 +91,8 @@ const AdminDashboard = ({ onLogout }) => {
     return localStorage.getItem('adminTheme') === 'dark';
   });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingFormat, setGeneratingFormat] = useState(null);
 
   const [adminSettings, setAdminSettings] = useState({
     checkInReminders: true,
@@ -900,6 +902,8 @@ const AdminDashboard = ({ onLogout }) => {
   };
 
   const handleGenerateReport = async (format) => {
+    setIsGenerating(true);
+    setGeneratingFormat(format);
     try {
       const params = new URLSearchParams();
 
@@ -1023,7 +1027,16 @@ const AdminDashboard = ({ onLogout }) => {
           body: tableRows,
           startY: 20,
           styles: { fontSize: 8 },
-          headStyles: { fillColor: [79, 70, 229] }
+          headStyles: { fillColor: [79, 70, 229] },
+          didParseCell: function(data) {
+            if (data.section === 'body' && data.column.index >= 4) { // Status columns start after ID, Name, Class Code, Class Name
+              const val = data.cell.raw;
+              if (val === 'P') data.cell.styles.textColor = [34, 197, 94]; // Green
+              else if (val === 'A') data.cell.styles.textColor = [239, 68, 68]; // Red
+              else if (val === 'L') data.cell.styles.textColor = [234, 179, 8]; // Yellow
+              else if (val === 'E') data.cell.styles.textColor = [59, 130, 246]; // Blue
+            }
+          }
         });
         
         doc.save(`${filename}.pdf`);
@@ -1031,6 +1044,9 @@ const AdminDashboard = ({ onLogout }) => {
     } catch (e) {
       console.error(e);
       alert('Error generating report: ' + e.message);
+    } finally {
+      setIsGenerating(false);
+      setGeneratingFormat(null);
     }
   };
 
@@ -3195,9 +3211,18 @@ const AdminDashboard = ({ onLogout }) => {
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-auto">
-                      <button onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-csv text-xl"></i> CSV</button>
-                      <button onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-excel text-xl"></i> Excel</button>
-                      <button onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border`}><i className="fas fa-file-pdf text-xl"></i> PDF</button>
+                      <button disabled={isGenerating} onClick={() => handleGenerateReport('CSV')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'CSV' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        {isGenerating && generatingFormat === 'CSV' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-csv text-xl"></i>} 
+                        {isGenerating && generatingFormat === 'CSV' ? 'Generating...' : 'CSV'}
+                      </button>
+                      <button disabled={isGenerating} onClick={() => handleGenerateReport('Excel')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'Excel' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        {isGenerating && generatingFormat === 'Excel' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-excel text-xl"></i>} 
+                        {isGenerating && generatingFormat === 'Excel' ? 'Generating...' : 'Excel'}
+                      </button>
+                      <button disabled={isGenerating} onClick={() => handleGenerateReport('PDF')} className={`py-3 rounded-lg font-bold text-sm transition flex flex-col items-center gap-2 ${subBg} ${hoverBg} ${borderSubColor} border ${isGenerating && generatingFormat === 'PDF' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        {isGenerating && generatingFormat === 'PDF' ? <i className="fas fa-spinner fa-spin text-xl"></i> : <i className="fas fa-file-pdf text-xl"></i>} 
+                        {isGenerating && generatingFormat === 'PDF' ? 'Generating...' : 'PDF'}
+                      </button>
                     </div>
                   </div>
 
