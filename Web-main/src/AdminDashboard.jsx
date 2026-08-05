@@ -1329,15 +1329,16 @@ const AdminDashboard = ({ onLogout }) => {
     setIsSavingAttendance(false);
   };
 
-  const openAddStudentModal = async (cls = null) => {
-    // Prevent event object from being treated as class
-    const targetClass = (cls && cls.classid) ? cls : selectedClass;
-    if (!targetClass) return;
+  const openAddStudentModal = async () => {
+    if (!selectedClass || !selectedClass.classid) {
+      console.error("No selected class found");
+      return;
+    }
     
-    setTargetEnrollClass(targetClass);
+    setTargetEnrollClass(selectedClass);
 
     try {
-      const res = await fetch(`${baseUrl}/api/classes/${targetClass.classid}/unenrolled-students`);
+      const res = await fetch(`${baseUrl}/api/classes/${selectedClass.classid}/unenrolled-students`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch');
       setUnenrolledStudents(Array.isArray(data) ? data : []);
@@ -2506,7 +2507,8 @@ const AdminDashboard = ({ onLogout }) => {
                             if (text) {
                               if (!(e.fullname || '').toLowerCase().includes(text) &&
                                   !(e.username || '').toLowerCase().includes(text) &&
-                                  !(e.email || '').toLowerCase().includes(text)) {
+                                  !(e.email || '').toLowerCase().includes(text) &&
+                                  !roleSpecId.toLowerCase().includes(text)) {
                                 return false;
                               }
                             }
@@ -3179,7 +3181,7 @@ const AdminDashboard = ({ onLogout }) => {
                         <p className={`text-xs ${mutedText} mt-1`}>Select a schedule to view the attendance sheet.</p>
                       </div>
                       <button 
-                        onClick={() => openAddStudentModal(selectedClass)}
+                        onClick={() => openAddStudentModal()}
                         className={`px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition inline-flex items-center gap-2 ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
                       >
                         <UserPlus size={14} /> Add Student
@@ -3841,7 +3843,7 @@ const AdminDashboard = ({ onLogout }) => {
                     <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                       <div><p className="text-sm font-bold">Appearance</p><p className={`mt-1 text-xs ${mutedText}`}>Choose a bright campus-inspired theme.</p></div>
                       <div className="flex gap-2">
-                        {[{ dark: false, label: 'Daylight', icon: Sun }, { dark: true, label: 'Soft sky', icon: Moon }].map(({ dark, label, icon }) => (
+                        {[{ dark: false, label: 'Light Mode', icon: Sun }, { dark: true, label: 'Dark Mode', icon: Moon }].map(({ dark, label, icon }) => (
                           <button key={label} onClick={() => setIsDark(dark)} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${isDark === dark ? 'border-[#60a5fa] bg-sky-50 text-sky-800 dark:bg-sky-400/10 dark:text-sky-300' : `border-[#e2e8f0] text-slate-600 hover:border-[#60a5fa] ${isDark ? 'border-white/10 text-slate-400' : ''}`}`}>{React.createElement(icon, { size: 15 })}{label}</button>
                         ))}
                       </div>
