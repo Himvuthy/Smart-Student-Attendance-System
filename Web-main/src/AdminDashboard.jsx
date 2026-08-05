@@ -3146,28 +3146,27 @@ const AdminDashboard = ({ onLogout }) => {
                                 <p className="font-bold text-lg">{cls.classcode}</p>
                                 <p className={`text-xs ${brandColor} font-semibold uppercase tracking-wider`}>{cls.classname}</p>
                               </div>
-                              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
-                            </div>
-                            <div className={`mt-4 pt-4 border-t ${borderSubColor} flex items-center justify-between`}>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); }} 
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-900 hover:bg-black'}`}
-                              >
-                                Edit
-                              </button>
-                              <div className="flex gap-2">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.classid); }} 
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors bg-red-500 hover:bg-red-600`}
-                                >
-                                  Delete
+                              <div className="flex items-center gap-2 relative">
+                                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isDark ? 'bg-black text-gray-300' : 'bg-white text-gray-600 shadow-sm border border-gray-100'}`}>{cls.student_count} Students</span>
+                                
+                                <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `class-${cls.classid}` ? null : `class-${cls.classid}`); }} className={`p-1 rounded-md transition ${mutedText} hover:text-black dark:hover:text-white`}>
+                                  <MoreVertical size={16} />
                                 </button>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); openAddStudentModal(cls); }} 
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors ${isDark ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900' : 'bg-indigo-500 hover:bg-indigo-600'}`}
-                                >
-                                  Enroll Student
-                                </button>
+                                {openMenuId === `class-${cls.classid}` && (
+                                  <>
+                                    <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }}></div>
+                                    <div className={`absolute right-0 top-full mt-1 w-36 rounded-xl shadow-xl z-50 py-1 border ${isDark ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-gray-100'}`}>
+                                      <div className="flex flex-col">
+                                        <button onClick={(e) => { e.stopPropagation(); openEditClassModal(cls); setOpenMenuId(null); }} className={`w-full px-4 py-2.5 text-[13px] font-bold flex items-center justify-between transition-colors ${isDark ? 'text-gray-100 hover:bg-white/5' : 'text-gray-900 hover:bg-gray-50'}`}>
+                                          Edit <Pencil size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.classid); setOpenMenuId(null); }} className={`w-full px-4 py-2.5 text-[13px] font-bold text-red-500 flex items-center justify-between transition-colors ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}>
+                                          Delete <Trash2 size={14} className="text-red-500" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
