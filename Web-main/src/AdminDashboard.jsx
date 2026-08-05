@@ -131,23 +131,16 @@ const AdminDashboard = ({ onLogout }) => {
     fetchSettings();
   }, []);
 
-  const saveThresholds = async () => {
+  const saveThreshold = async (key, value) => {
     setIsSavingThreshold(true);
     try {
       await fetch(`${baseUrl}/api/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'late_threshold', value: String(lateThreshold) })
+        body: JSON.stringify({ key, value: String(value) })
       });
-      await fetch(`${baseUrl}/api/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'absent_threshold', value: String(absentThreshold) })
-      });
-      alert('Thresholds saved successfully!');
     } catch (e) {
-      console.error('Failed to save thresholds:', e);
-      alert('Failed to save thresholds.');
+      console.error('Failed to save threshold:', e);
     } finally {
       setIsSavingThreshold(false);
     }
@@ -3274,20 +3267,27 @@ const AdminDashboard = ({ onLogout }) => {
                       <p className={`text-xs ${mutedText} mt-1`}>Configure thresholds and secure your SQL data.</p>
                     </div>
                     <div className="space-y-6">
-                      <div>
-                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late Threshold (Minutes)</label>
-                        <input type="number" min="1" value={lateThreshold} onChange={e => setLateThreshold(parseInt(e.target.value, 10) || 0)} className={inputStyle} />
-                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this many minutes are marked 'Late'.</p>
-                      </div>
-                      <div>
-                        <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Absent Threshold (Minutes)</label>
-                        <input type="number" min="1" value={absentThreshold} onChange={e => setAbsentThreshold(parseInt(e.target.value, 10) || 0)} className={inputStyle} />
-                        <p className={`text-[10px] ${mutedText} mt-1.5`}>Students arriving after this many minutes are marked 'Absent'.</p>
-                      </div>
-                      <div>
-                        <button onClick={saveThresholds} disabled={isSavingThreshold} className={`w-full py-2.5 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white ${isSavingThreshold ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                          {isSavingThreshold ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><Save size={16} /> Save Thresholds</>}
-                        </button>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Late (Minutes)</label>
+                          <div className="relative">
+                            <input type="number" min="1" value={lateThreshold} onChange={e => setLateThreshold(parseInt(e.target.value, 10) || 0)} className={`${inputStyle} pr-10`} />
+                            <button onClick={() => saveThreshold('late_threshold', lateThreshold)} disabled={isSavingThreshold} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md hover:bg-indigo-500/20 transition text-indigo-500" title="Save">
+                              {isSavingThreshold ? <i className="fas fa-spinner fa-spin text-sm"></i> : <Save size={14} />}
+                            </button>
+                          </div>
+                          <p className={`text-[10px] ${mutedText} mt-1.5`}>Marked 'Late' after this.</p>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Absent (Minutes)</label>
+                          <div className="relative">
+                            <input type="number" min="1" value={absentThreshold} onChange={e => setAbsentThreshold(parseInt(e.target.value, 10) || 0)} className={`${inputStyle} pr-10`} />
+                            <button onClick={() => saveThreshold('absent_threshold', absentThreshold)} disabled={isSavingThreshold} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md hover:bg-red-500/20 transition text-red-500" title="Save">
+                              {isSavingThreshold ? <i className="fas fa-spinner fa-spin text-sm"></i> : <Save size={14} />}
+                            </button>
+                          </div>
+                          <p className={`text-[10px] ${mutedText} mt-1.5`}>Marked 'Absent' after this.</p>
+                        </div>
                       </div>
                       <div>
                         <label className={`block text-xs font-bold mb-1.5 ${mutedText} uppercase tracking-wider`}>Automated SQL Backup</label>
