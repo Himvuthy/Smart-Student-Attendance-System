@@ -4,7 +4,7 @@ import {
   Cpu, FileText, Terminal, Settings, LogOut, 
   Users, CheckCircle, XCircle, BarChart3, Sun, Moon,
   CalendarDays, Search, Pencil, Trash2, KeyRound, PieChart as PieChartIcon, MoreHorizontal,
-  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ChevronRight, ShieldCheck, CheckCircle2, Shield, Camera
+  Copy, Maximize, Clock, Filter, Plus, MoreVertical, Download, UserPlus, Save, X, ChevronLeft, ChevronRight, ShieldCheck, CheckCircle2, Shield, Camera, Lock, Unlock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
@@ -180,6 +180,45 @@ const AdminDashboard = ({ onLogout }) => {
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef(null);
   const notificationRef = useRef(null);
+
+  // Backup System State
+  const [backups, setBackups] = useState([
+    { id: 3, name: 'backup_2026-07-15_1200.sql', date: '7/15/2026, 12:00 PM', size: '15.4 MB', isLocked: false },
+    { id: 2, name: 'backup_2026-07-14_1200.sql', date: '7/14/2026, 12:00 PM', size: '15.2 MB', isLocked: false },
+    { id: 1, name: 'backup_2026-07-13_1200.sql', date: '7/13/2026, 12:00 PM', size: '14.9 MB', isLocked: false },
+  ]);
+  const [selectedBackups, setSelectedBackups] = useState(new Set());
+  const [backupMenuOpen, setBackupMenuOpen] = useState(null);
+
+  const handleForceBackup = () => {
+    const newId = backups.length > 0 ? Math.max(...backups.map(b => b.id)) + 1 : 1;
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toLocaleTimeString([], { hour12: false }).replace(/:/g, '');
+    const newBackup = {
+      id: newId,
+      name: `backup_${dateStr}_${timeStr}.sql`,
+      date: now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      size: (Math.random() * 2 + 14).toFixed(1) + ' MB',
+      isLocked: false
+    };
+
+    let newBackups = [newBackup, ...backups];
+    if (newBackups.length > 10) {
+      // Find oldest unlocked backup to remove
+      for (let i = newBackups.length - 1; i >= 0; i--) {
+        if (!newBackups[i].isLocked) {
+          newBackups.splice(i, 1);
+          break;
+        }
+      }
+    }
+    setBackups(newBackups);
+  };
+
+  const toggleBackupLock = (id) => {
+    setBackups(backups.map(b => b.id === id ? { ...b, isLocked: !b.isLocked } : b));
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -3303,7 +3342,7 @@ const AdminDashboard = ({ onLogout }) => {
                         />
                       </div>
                       <div className={`pt-6 border-t ${borderSubColor}`}>
-                        <button className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
+                        <button onClick={handleForceBackup} className={`w-full py-3 rounded-lg font-bold text-sm transition flex items-center justify-center gap-2 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-800 hover:bg-gray-900 text-white'}`}>
                           <Database size={16} /> Force Manual Backup Now
                         </button>
                       </div>
@@ -3315,9 +3354,21 @@ const AdminDashboard = ({ onLogout }) => {
                 <div className={`${cardStyle} !p-0 overflow-hidden`}>
                   <div className={`p-6 pb-4 border-b flex justify-between items-center ${borderSubColor}`}>
                     <h3 className="font-bold text-lg">Recent Backups</h3>
-                    <button className={`px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition`}>Select All</button>
+                    <div className="flex gap-2">
+                      {selectedBackups.size > 0 && (
+                        <button onClick={() => alert('Downloading selected backups...')} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1">
+                          <Download size={12} /> Download
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => selectedBackups.size === backups.length && backups.length > 0 ? setSelectedBackups(new Set()) : setSelectedBackups(new Set(backups.map(b => b.id)))} 
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition`}
+                      >
+                        {selectedBackups.size === backups.length && backups.length > 0 ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto min-h-[300px]">
                     <table className="w-full text-sm text-left whitespace-nowrap">
                       <thead className={`text-[10px] font-extrabold ${mutedText} uppercase tracking-wider border-b-2 ${borderSubColor}`}>
                         <tr>
@@ -3329,24 +3380,60 @@ const AdminDashboard = ({ onLogout }) => {
                         </tr>
                       </thead>
                       <tbody className={`divide-y ${borderSubColor}`}>
-                        {[
-                          { id: 1, name: 'backup_2026-07-15_1200.sql', date: '7/15/2026, 12:00 PM', size: '15.4 MB' },
-                          { id: 2, name: 'backup_2026-07-14_1200.sql', date: '7/14/2026, 12:00 PM', size: '15.2 MB' },
-                          { id: 3, name: 'backup_2026-07-13_1200.sql', date: '7/13/2026, 12:00 PM', size: '14.9 MB' },
-                        ].map(backup => (
-                          <tr key={backup.id} className={`${hoverBg} transition-colors`}>
-                            <td className="px-6 py-4 font-bold">{backup.id}</td>
-                            <td className="px-6 py-4 font-bold">{backup.name}</td>
-                            <td className="px-6 py-4 text-xs font-semibold">{backup.date}</td>
-                            <td className="px-6 py-4 text-xs font-semibold">{backup.size}</td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-3">
-                                <div className={`w-4 h-4 rounded bg-gray-600 dark:bg-gray-400 cursor-pointer transition hover:opacity-80`}></div>
-                                <button className={`p-1 rounded-lg ${mutedText} hover:bg-gray-100 dark:hover:bg-white/5`}><MoreVertical size={16} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {backups.map((backup, idx) => {
+                          const oldestUnlockedIdx = backups.map(b => b.isLocked).lastIndexOf(false);
+                          const isRed = backups.length === 10 && idx === oldestUnlockedIdx;
+                          const rowColor = backup.isLocked ? 'text-emerald-500 bg-emerald-500/5' : (isRed ? 'text-red-500 bg-red-500/5' : '');
+
+                          return (
+                            <tr key={backup.id} className={`${hoverBg} transition-colors ${rowColor}`}>
+                              <td className="px-6 py-4 font-bold">{backup.id}</td>
+                              <td className="px-6 py-4 font-bold">{backup.name}</td>
+                              <td className="px-6 py-4 text-xs font-semibold">{backup.date}</td>
+                              <td className="px-6 py-4 text-xs font-semibold">
+                                {backup.size}
+                                {backup.isLocked && <Lock size={12} className="inline ml-2 text-emerald-500" />}
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-3 relative">
+                                  <div 
+                                    onClick={() => {
+                                      const newSet = new Set(selectedBackups);
+                                      if (newSet.has(backup.id)) newSet.delete(backup.id);
+                                      else newSet.add(backup.id);
+                                      setSelectedBackups(newSet);
+                                    }}
+                                    className={`w-4 h-4 rounded cursor-pointer transition flex items-center justify-center ${selectedBackups.has(backup.id) ? 'bg-indigo-600 text-white' : 'bg-gray-600 dark:bg-gray-400 hover:opacity-80'}`}
+                                  >
+                                    {selectedBackups.has(backup.id) && <CheckCircle2 size={12} />}
+                                  </div>
+                                  
+                                  <button 
+                                    onClick={() => setBackupMenuOpen(backupMenuOpen === backup.id ? null : backup.id)} 
+                                    className={`p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${backup.isLocked || isRed ? 'text-inherit' : mutedText}`}
+                                  >
+                                    <MoreVertical size={16} />
+                                  </button>
+                                  
+                                  {backupMenuOpen === backup.id && (
+                                    <div 
+                                      onMouseLeave={() => setBackupMenuOpen(null)}
+                                      className={`absolute right-0 top-8 w-36 py-1 rounded-lg shadow-xl z-50 border ${isDark ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}
+                                    >
+                                      <button onClick={() => { alert(`Downloading ${backup.name}...`); setBackupMenuOpen(null); }} className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition`}>
+                                        <Download size={14} className="inline mr-2" /> Download
+                                      </button>
+                                      <button onClick={() => { toggleBackupLock(backup.id); setBackupMenuOpen(null); }} className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition ${backup.isLocked ? 'text-orange-500' : 'text-emerald-500'}`}>
+                                        {backup.isLocked ? <Unlock size={14} className="inline mr-2" /> : <Lock size={14} className="inline mr-2" />} 
+                                        {backup.isLocked ? 'Unlock' : 'Lock'}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
