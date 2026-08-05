@@ -938,16 +938,44 @@ const AdminDashboard = ({ onLogout }) => {
         return;
       }
 
-      const formattedData = data.map(row => ({
-        'Student ID': String(row.studentid).padStart(4, '0'),
-        'Student Name': row.studentname,
-        'Class Code': row.classcode,
-        'Class Name': row.classname,
-        'Session Date': new Date(row.sessiondate).toLocaleDateString(),
-        'Status': row.status,
-        'Time Attended': row.attendedat ? new Date(row.attendedat).toLocaleTimeString() : 'N/A',
-        'Minutes Late': row.minutelate || 0
-      }));
+      // Extract unique dates and sort them chronologically
+      const rawDates = [...new Set(data.map(r => new Date(r.sessiondate).toISOString().split('T')[0]))].sort();
+      const dateColumns = rawDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC'}));
+
+      // Group by student and class to create a pivot table
+      const studentClassGroups = {};
+      data.forEach(row => {
+        const key = `${row.studentid}_${row.classid}`;
+        if (!studentClassGroups[key]) {
+          studentClassGroups[key] = {
+            'Student ID': String(row.studentid).padStart(4, '0'),
+            'Student Name': row.studentname,
+            'Class Code': row.classcode,
+            'Class Name': row.classname,
+          };
+          // Initialize all date columns to '-'
+          rawDates.forEach((rd, idx) => {
+            studentClassGroups[key][dateColumns[idx]] = '-';
+          });
+        }
+        
+        const dateStr = new Date(row.sessiondate).toISOString().split('T')[0];
+        const dateIdx = rawDates.indexOf(dateStr);
+        if (dateIdx !== -1) {
+          const status = row.status;
+          let displayChar = '-';
+          if (status === 'Present') displayChar = 'P';
+          else if (status === 'Absent') displayChar = 'A';
+          else if (status === 'Late') displayChar = 'L';
+          else if (status === 'Permission' || status === 'Excused') displayChar = 'E';
+          
+          studentClassGroups[key][dateColumns[dateIdx]] = displayChar;
+        }
+      });
+
+      const formattedData = Object.values(studentClassGroups);
+      // Sort by Student Name
+      formattedData.sort((a, b) => a['Student Name'].localeCompare(b['Student Name']));
 
       const filename = `Attendance_Report_${new Date().toISOString().split('T')[0]}`;
 
