@@ -984,6 +984,23 @@ const AdminDashboard = ({ onLogout }) => {
     fetchTrackingLogs(session.sessionid);
   };
 
+  const handleDeleteClass = async (classid) => {
+    if (!confirm('Are you sure you want to delete this class? This will also delete all associated schedules and enrollments.')) return;
+    try {
+      const res = await fetch(`${baseUrl}/api/classes/${classid}`, { method: 'DELETE' });
+      if (res.ok) {
+        setClasses(prev => prev.filter(c => c.classid !== classid));
+        if (selectedClass?.classid === classid) setSelectedClass(null);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete class');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error deleting class');
+    }
+  };
+
   const handleClassClick = async (cls) => {
     setSelectedClass(cls);
     if (dataCache.current.schedules[cls.classid]) {
