@@ -202,7 +202,7 @@ app.get('/api/admin/dashboard', async (req, res) => {
     const todayStr = days[new Date().getDay()];
     
     const todaysRes = await pool.query(`
-      SELECT s.scheduleid as id, c.classcode as code, c.classname as subject, 
+      SELECT s.scheduleid as id, c.classcode as code, c.classname, s.subject as subject, 
              e.fullname as lecturer, s.starttime, s.endtime
       FROM schedule s
       JOIN class c ON s.classid = c.classid
@@ -214,6 +214,7 @@ app.get('/api/admin/dashboard', async (req, res) => {
     const todaysClasses = todaysRes.rows.map(r => ({
       id: r.id,
       code: r.code,
+      classname: r.classname,
       subject: r.subject,
       lecturer: r.lecturer,
       time: `${r.starttime.substring(0,5)} - ${r.endtime.substring(0,5)}`,

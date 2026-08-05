@@ -1683,8 +1683,8 @@ const AdminDashboard = ({ onLogout }) => {
                           <div key={item.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/[0.04]">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-700 dark:bg-sky-400/15 dark:text-sky-300">{item.code.slice(0, 2)}</div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-extrabold text-gray-900 dark:text-white">{item.subject}</p>
-                              <p className={`truncate text-xs text-gray-500`}>{item.lecturer}</p>
+                              <p className="truncate text-sm font-extrabold text-gray-900 dark:text-white">{item.classname}</p>
+                              <p className={`truncate text-xs text-gray-500`}>{item.subject} • {item.lecturer || 'Unassigned'}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-xs font-black text-gray-900 dark:text-white">{item.time.split(' - ')[0]}</p>
