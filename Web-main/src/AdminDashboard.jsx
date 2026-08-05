@@ -2661,23 +2661,9 @@ const AdminDashboard = ({ onLogout }) => {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1 mr-2">
-                          <button 
-                            onClick={() => setAttendancePage(p => Math.max(0, p - 1))}
-                            disabled={attendancePage === 0}
-                            className={`p-1.5 rounded-lg transition ${attendancePage === 0 ? 'opacity-50 cursor-not-allowed' : (isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100')}`}
-                          >
-                            <ChevronLeft size={18} />
-                          </button>
-                          <span className="text-xs font-bold whitespace-nowrap px-1">
-                            Semester {attendancePage + 1}
-                          </span>
-                          <button 
-                            onClick={() => setAttendancePage(p => Math.min(1, p + 1))}
-                            disabled={!attendanceData || attendancePage >= 1}
-                            className={`p-1.5 rounded-lg transition ${(!attendanceData || attendancePage >= 1) ? 'opacity-50 cursor-not-allowed' : (isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100')}`}
-                          >
-                            <ChevronRight size={18} />
-                          </button>
+                           <span className={`text-xs font-bold whitespace-nowrap px-3 py-1.5 rounded-lg ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                             Semester {selectedClass?.semester || 1}
+                           </span>
                         </div>
                         {!isEditingAttendance && (
                           <button 
