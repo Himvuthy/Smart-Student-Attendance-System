@@ -1001,6 +1001,26 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
+  const handleTodaysClassClick = (item) => {
+    const targetClass = classes.find(c => c.classcode === item.code);
+    if (!targetClass) {
+      alert("Could not find the associated class in the database.");
+      return;
+    }
+    
+    const fakeSched = {
+      scheduleid: item.id,
+      subject: item.subject,
+      dayofweek: new Date().toLocaleDateString('en-US', { weekday: 'long' })
+    };
+    
+    setActiveView('classes');
+    handleClassClick(targetClass);
+    setTimeout(() => {
+      handleScheduleClick(fakeSched);
+    }, 100);
+  };
+
   const handleClassClick = async (cls) => {
     setSelectedClass(cls);
     if (dataCache.current.schedules[cls.classid]) {
@@ -1718,7 +1738,7 @@ const AdminDashboard = ({ onLogout }) => {
                         {adminDashboardData.todaysClasses.length === 0 ? (
                           <p className={`text-center text-sm text-gray-500 mt-10`}>No classes scheduled for today.</p>
                         ) : adminDashboardData.todaysClasses.map((item, index) => (
-                          <div key={item.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/[0.04]">
+                          <div key={item.id} onClick={() => handleTodaysClassClick(item)} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/[0.04] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-700 dark:bg-sky-400/15 dark:text-sky-300">{item.code.slice(0, 2)}</div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-extrabold text-gray-900 dark:text-white">{item.classname}</p>
