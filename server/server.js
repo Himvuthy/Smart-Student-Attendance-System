@@ -741,7 +741,7 @@ app.get('/api/reports/attendance', async (req, res) => {
 app.get('/api/attendance-tracking/classes', async (req, res) => {
   try {
     const classResult = await pool.query(`
-      SELECT c.classid, c.classname, c.classcode, 
+      SELECT c.*, 
         (SELECT COUNT(*) FROM enrollment e WHERE e.classid = c.classid) AS total_enrolled
       FROM class c
     `);
