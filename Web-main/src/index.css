@@ -32,10 +32,6 @@ html {
   background-attachment: fixed;
 }
 
-.campus-dashboard.soft-sky .campus-shell {
-  background: linear-gradient(135deg, #d8eaf6 0%, #e6f1f7 52%, #f5f7f6 100%);
-}
-
 .campus-sidebar {
   background: linear-gradient(180deg, #f9fbfc 0%, #edf4f8 100%);
   border-color: #c9dae6 !important;
@@ -55,6 +51,30 @@ html {
   box-shadow:
     0 10px 24px rgba(54, 85, 107, 0.12),
     0 2px 5px rgba(54, 85, 107, 0.08) !important;
+}
+
+/* Teacher/student dashboards use a local .dark class so their theme does not
+   depend on the operating-system preference or affect the login screen. */
+.campus-dashboard.dark {
+  color-scheme: dark;
+  color: #e2e8f0;
+}
+
+.campus-dashboard.dark .campus-shell {
+  background: linear-gradient(135deg, #0b1220 0%, #111b2c 52%, #161b29 100%);
+  color: #e2e8f0 !important;
+}
+
+.campus-dashboard.dark .campus-sidebar {
+  background: linear-gradient(180deg, #101827 0%, #0c1422 100%);
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.24);
+}
+
+.campus-dashboard.dark .campus-card {
+  background: linear-gradient(145deg, #151f30 0%, #101827 100%) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24) !important;
 }
 
 .campus-dashboard [class~="bg-sky-400"],
@@ -128,9 +148,80 @@ html {
 .campus-dashboard textarea {
   border-color: var(--campus-line);
   background-color: #ffffff;
-  border-radius: 1rem !important;
 }
 
 .campus-dashboard table thead {
   background: #eaf2f7;
+}
+
+/* Dark palette overrides must come after the light campus utility remaps.
+   This keeps contrast readable across both the student and teacher portals. */
+.campus-dashboard.dark {
+  --campus-ink: #f1f5f9;
+  --campus-muted: #9fb0c5;
+  --campus-line: rgba(148, 163, 184, 0.22);
+}
+
+.campus-dashboard.dark [class~="text-slate-500"],
+.campus-dashboard.dark [class~="text-slate-600"],
+.campus-dashboard.dark [class~="dark:text-slate-300"],
+.campus-dashboard.dark [class~="dark:text-slate-400"] {
+  color: #aebdd0 !important;
+}
+
+.campus-dashboard.dark [class~="text-sky-500"],
+.campus-dashboard.dark [class~="text-sky-600"],
+.campus-dashboard.dark [class~="text-sky-700"],
+.campus-dashboard.dark [class~="text-sky-800"],
+.campus-dashboard.dark [class~="dark:text-sky-200"],
+.campus-dashboard.dark [class~="dark:text-sky-300"],
+.campus-dashboard.dark [class~="dark:text-sky-400"] {
+  color: #7dd3fc !important;
+}
+
+.campus-dashboard.dark [class~="bg-sky-50"],
+.campus-dashboard.dark [class~="bg-sky-50/50"],
+.campus-dashboard.dark [class~="bg-sky-50/70"],
+.campus-dashboard.dark [class~="bg-sky-50/80"],
+.campus-dashboard.dark [class~="dark:bg-sky-400/10"],
+.campus-dashboard.dark [class~="dark:bg-sky-400/15"] {
+  background-color: rgba(56, 189, 248, 0.12) !important;
+  background-image: none !important;
+}
+
+.campus-dashboard.dark [class~="bg-sky-300"],
+.campus-dashboard.dark [class~="bg-sky-400"],
+.campus-dashboard.dark [class~="bg-sky-500"] {
+  background-color: #38bdf8 !important;
+  background-image: linear-gradient(135deg, #38bdf8, #818cf8) !important;
+  color: #07111f !important;
+}
+
+.campus-dashboard.dark input,
+.campus-dashboard.dark select,
+.campus-dashboard.dark textarea {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background-color: rgba(15, 23, 42, 0.78) !important;
+  color: #e2e8f0 !important;
+}
+
+.campus-dashboard.dark input::placeholder,
+.campus-dashboard.dark textarea::placeholder {
+  color: #7f91a8 !important;
+  opacity: 1;
+}
+
+.campus-dashboard.dark select option {
+  background: #111b2c;
+  color: #e2e8f0;
+}
+
+.campus-dashboard.dark table thead {
+  background: #172235;
+  color: #cbd5e1;
+}
+
+.campus-dashboard.dark .campus-card:hover {
+  border-color: rgba(125, 211, 252, 0.24) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32) !important;
 }
