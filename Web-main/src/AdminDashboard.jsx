@@ -3691,38 +3691,6 @@ const AdminDashboard = ({ onLogout }) => {
                   <p className={`mt-1 text-sm ${mutedText}`}>Manage notifications, appearance, attendance preferences, and account security.</p>
                 </div>
 
-                <div className="grid gap-5 xl:grid-cols-[1.35fr_0.85fr]">
-                  <section className={`${cardStyle} overflow-hidden !p-0`}>
-                    <div className={`flex items-center gap-3 border-b ${borderColor} p-5`}>
-                      <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-sky-400/10 text-sky-300' : 'bg-sky-50 text-[#3b82f6]'}`}><Bell size={19} /></span>
-                      <div><h3 className="font-extrabold">Attendance notifications</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Choose which updates you want to receive.</p></div>
-                    </div>
-                    <div className={`divide-y ${borderColor} px-5`}>
-                      {[
-                        ['checkInReminders', 'Class check-in reminders', 'Notify me before fingerprint check-in opens.'],
-                        ['missedAttendanceAlerts', 'Missed attendance alerts', 'Let me know when a class is marked absent or unverified.'],
-                        ['excuseUpdates', 'Excuse request updates', 'Receive a notification when a teacher reviews my request.'],
-                        ['weeklySummary', 'Weekly attendance summary', 'Get a short attendance recap at the end of each week.'],
-                      ].map(([setting, title, copy]) => (
-                        <div key={setting} className="flex items-center justify-between gap-5 py-4">
-                          <div><p className="text-sm font-bold">{title}</p><p className={`mt-1 text-xs leading-5 ${mutedText}`}>{copy}</p></div>
-                          <Toggle setting={setting} label={title} />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <div className="space-y-5">
-
-                    <section className={`${cardStyle} p-5`}>
-                      <div className="flex items-center gap-3">
-                        <span className={`grid h-10 w-10 place-items-center rounded-xl ${isDark ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`}><ShieldCheck size={19} /></span>
-                        <div className="flex-1"><h3 className="font-extrabold">Login alerts</h3><p className={`mt-0.5 text-xs ${mutedText}`}>Notify me about new device sign-ins.</p></div>
-                        <Toggle setting="loginAlerts" label="Login alerts" />
-                      </div>
-                    </section>
-                  </div>
-                </div>
 
                 <section className={`${cardStyle} overflow-hidden !p-0`}>
                   <div className={`border-b ${borderColor} p-5 flex items-center gap-3`}>
