@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, BarChart3, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight,
   Camera, Clock3, Download, FileCheck2, FileText, Fingerprint, HelpCircle, LayoutDashboard, LogOut,
-  MapPin, Menu, Moon, MoreHorizontal, Play, Search, Settings, ShieldCheck, Square, Sun,
+  MapPin, Menu, Moon, MoreHorizontal, Search, Settings, ShieldCheck, Sun,
   TriangleAlert, UserRound, Users, X, XCircle,
 } from 'lucide-react';
 import AccountSecurity from './AccountSecurity';
@@ -119,7 +119,6 @@ const TeacherDashboard = ({ onLogout }) => {
   const [recordReturnView, setRecordReturnView] = useState(null);
   const [attendanceReturnView, setAttendanceReturnView] = useState(null);
   const [officialTimetable, setOfficialTimetable] = useState(readOfficialTimetable);
-  const [sessionActive, setSessionActive] = useState(false);
   const [fingerprintAttempts, setFingerprintAttempts] = useState(seedFingerprintAttempts);
   const [correctionRequests, setCorrectionRequests] = useState(readAttendanceCorrections);
   const [attendanceRows, setAttendanceRows] = useState(() => {
@@ -492,16 +491,16 @@ const TeacherDashboard = ({ onLogout }) => {
   const renderTakeAttendance = () => (
     <div className="space-y-6">
       {attendanceReturnView && <BackButton label={`Back to ${attendanceReturnView === 'dashboard' ? 'overview' : attendanceReturnView}`} target={attendanceReturnView} onBeforeBack={() => {
-        if (sessionActive && !window.confirm('The attendance session is still live. End it and go back?')) return false;
-        setSessionActive(false);
         setAttendanceReturnView(null);
         return true;
       }} />}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><HeaderBlock eyebrow="Fingerprint session" title="Take attendance" copy="Open a scanner session and review live student check-ins." /><select value={selectedClass} onChange={(event) => setSelectedClass(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-sky-400 dark:border-white/10 dark:bg-[#121a29]">{classes.map((item) => <option key={item.code} value={item.code}>{item.code} — {item.name}</option>)}</select></div>
+      {/* Scanner session toggle removed because it was not connected to the backend.
       <section className={`${card} flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between`}>
         <div className="flex items-center gap-4"><span className={`relative grid h-14 w-14 place-items-center rounded-2xl ${sessionActive ? 'bg-sky-400 text-white shadow-lg shadow-sky-400/20' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}><Fingerprint size={27} />{sessionActive && <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#121a29]" />}</span><div><h3 className="font-black">{sessionActive ? 'Scanner session is live' : 'Scanner session is closed'}</h3><p className={`mt-1 text-xs ${muted}`}>{sessionActive ? 'Students can check in using the classroom fingerprint scanner.' : 'Start the session when students are ready to check in.'}</p></div></div>
         <button onClick={() => setSessionActive((value) => !value)} className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition ${sessionActive ? 'border border-sky-200 bg-white/80 text-slate-700 shadow-sm hover:bg-sky-50' : 'bg-sky-400 text-slate-700 hover:bg-sky-500'}`}>{sessionActive ? <><Square size={15} />End session</> : <><Play size={15} />Start session</>}</button>
       </section>
+      */}
       <div className="grid gap-4 sm:grid-cols-3">{[['Present', totals.present, CheckCircle2], ['Late', totals.late, Clock3], ['Absent', totals.absent, XCircle]].map(([label, value, icon]) => <div key={label} className={`${card} flex items-center gap-3 p-4`}><span className="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-400/10 dark:text-sky-300">{React.createElement(icon, { size: 17 })}</span><div><p className={`text-[10px] font-bold uppercase tracking-wider ${muted}`}>{label}</p><p className="text-xl font-black">{value}</p></div></div>)}</div>
       <section className={`${card} overflow-hidden`}><div className="flex flex-col gap-4 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"><div><h3 className="font-extrabold">Live roster</h3><p className={`mt-1 text-xs ${muted}`}>{selectedClass} · July 28, 2026</p></div>{Filters()}</div>{StatusTable({ editable: true })}</section>
       <section className={`${card} overflow-hidden`}><div className="flex items-center justify-between gap-3 border-b border-slate-100 p-5 dark:border-white/10"><div><h3 className="font-extrabold">Fingerprint attempt review</h3><p className={`mt-1 text-xs ${muted}`}>Review failed matches and duplicate check-in attempts from this session.</p></div><span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 dark:bg-rose-400/10 dark:text-rose-300">{openFingerprintAttempts.length} open</span></div><div className="divide-y divide-slate-100 dark:divide-white/5">{fingerprintAttempts.map((attempt) => <div key={attempt.id} className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-start gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${attempt.type === 'Failed' ? 'bg-rose-50 text-rose-600 dark:bg-rose-400/10 dark:text-rose-300' : 'bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300'}`}><Fingerprint size={18} /></span><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-extrabold">{attempt.student}</p><span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${attempt.type === 'Failed' ? 'bg-rose-50 text-rose-600 dark:bg-rose-400/10' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10'}`}>{attempt.type}</span></div><p className={`mt-1 text-xs ${muted}`}>{attempt.studentId} · {attempt.time} · {attempt.detail}</p></div></div><div className="flex items-center gap-2">{attempt.status === 'Open' ? <><button onClick={() => { setStudentQuery(attempt.student); setFingerprintAttempts((items) => items.map((item) => item.id === attempt.id ? { ...item, status: 'Resolved' } : item)); }} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-bold transition hover:border-sky-300 hover:text-sky-600 dark:border-white/10">Open student</button><button onClick={() => setFingerprintAttempts((items) => items.map((item) => item.id === attempt.id ? { ...item, status: 'Resolved' } : item))} className="rounded-lg bg-sky-500 px-3 py-2 text-[10px] font-bold text-white hover:bg-sky-600">Mark resolved</button></> : <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"><Check size={13} />Resolved</span>}</div></div>)}</div></section>
