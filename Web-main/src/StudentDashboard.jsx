@@ -440,7 +440,8 @@ const StudentDashboard = ({ onLogout }) => {
       .filter((record) => Number.isFinite(record.timestamp));
     const rateForRange = (start, finish) => {
       const rows = normalizedRecords.filter((record) => record.timestamp >= start.getTime() && record.timestamp <= finish.getTime());
-      return rows.length ? Math.round((rows.filter((record) => ['Present', 'Late'].includes(record.status)).length / rows.length) * 100) : 0;
+      const attended = rows.filter((record) => ['Present', 'Late'].includes(record.status)).length;
+      return { value: rows.length ? Math.round((attended / rows.length) * 100) : null, attended, total: rows.length };
     };
     if (analyticsRange === 'monthly') {
       return Array.from({ length: 4 }, (_, index) => {
@@ -449,7 +450,7 @@ const StudentDashboard = ({ onLogout }) => {
         const start = new Date(finish);
         start.setDate(finish.getDate() - 6);
         start.setHours(0, 0, 0, 0);
-        return { label: `Week ${index + 1}`, value: rateForRange(start, finish) };
+        return { label: `Week ${index + 1}`, ...rateForRange(start, finish) };
       });
     }
     return Array.from({ length: 7 }, (_, index) => {
@@ -459,9 +460,10 @@ const StudentDashboard = ({ onLogout }) => {
       start.setHours(0, 0, 0, 0);
       const finish = new Date(date);
       finish.setHours(23, 59, 59, 999);
-      return { label: date.toLocaleDateString(undefined, { weekday: 'short' }), value: rateForRange(start, finish) };
+      return { label: date.toLocaleDateString(undefined, { weekday: 'short' }), ...rateForRange(start, finish) };
     });
   }, [analyticsRange, effectiveRecords]);
+  const latestAnalyticsIndex = analyticsData.reduce((latest, item, index) => item.total > 0 ? index : latest, -1);
 
   const filteredRecords = useMemo(() => effectiveRecords.filter((record) => {
     const matchesSearch = `${record.subject} ${record.code} ${record.date}`.toLowerCase().includes(query.toLowerCase());
@@ -650,7 +652,7 @@ const StudentDashboard = ({ onLogout }) => {
       <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
         <div className={`${card} overflow-hidden`}>
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
-            <div><h3 className="font-extrabold">Attendance Analytics</h3><p className={`mt-0.5 text-xs ${muted}`}>{analyticsRange === 'weekly' ? 'Last 7 days' : 'Last 4 weeks'} fingerprint check-in performance</p></div>
+            <div><h3 className="font-extrabold">Attendance Rate</h3><p className={`mt-0.5 text-xs ${muted}`}>{analyticsRange === 'weekly' ? 'Daily results from the last 7 days' : 'Weekly results from the last 28 days'} based on database attendance records</p></div>
             <div className="flex rounded-xl border border-slate-200 p-1 text-xs font-bold dark:border-white/10">{['weekly', 'monthly'].map((range) => <button key={range} type="button" onClick={() => setAnalyticsRange(range)} aria-pressed={analyticsRange === range} className={`rounded-lg px-3 py-1.5 capitalize transition ${analyticsRange === range ? 'bg-white shadow-sm dark:bg-white/10' : muted}`}>{range}</button>)}</div>
           </div>
           <div className="p-5">
@@ -659,15 +661,16 @@ const StudentDashboard = ({ onLogout }) => {
                 {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-slate-100 dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
               </div>
               <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
-                {analyticsData.map(({ label, value }, index) => (
+                {analyticsData.map(({ label, value, attended, total }, index) => (
                   <div key={`${label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                    <span className={`text-[10px] font-bold ${index === analyticsData.length - 1 ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : muted}`}>{value}%</span>
-                    <div className={`w-full max-w-16 rounded-xl ${index === analyticsData.length - 1 ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${Math.max(value * 1.75, value ? 4 : 0)}px` }} />
+                    <span title={total ? `${attended} attended out of ${total} recorded sessions` : 'No attendance record'} className={`text-[10px] font-bold ${index === latestAnalyticsIndex ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : muted}`}>{value === null ? 'No data' : `${value}%`}</span>
+                    <div title={total ? `${attended} attended out of ${total} recorded sessions` : 'No attendance record'} className={`w-full max-w-16 rounded-xl ${index === latestAnalyticsIndex ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${value === null ? 0 : Math.max(value * 1.75, value ? 4 : 0)}px` }} />
                     <span className={`text-xs font-medium ${muted}`}>{label}</span>
                   </div>
                 ))}
               </div>
             </div>
+            <p className={`mt-3 text-center text-[10px] ${muted}`}>Attendance rate = (Present + Late) ÷ recorded sessions. “No data” means the database has no session record for that period.</p>
           </div>
         </div>
 
