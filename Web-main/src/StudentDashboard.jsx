@@ -11,7 +11,9 @@ import { ATTENDANCE_CORRECTIONS_KEY, readAttendanceCorrections, submitAttendance
 import { OFFICIAL_TIMETABLE_KEY, readOfficialTimetable } from './officialTimetable';
 import { downloadCsv } from './csvExport';
 
-const schedule = [
+const API_BASE = import.meta.env.VITE_API_URL || 'https://smart-student-attendance-system-nkka.onrender.com';
+
+const seedSchedule = [
   { day: 'Monday', short: 'Mon', time: '08:00 - 09:30', subject: 'Data Structures & Algorithms', code: 'CS301', room: 'A201', lecturer: 'Dr. Lina Chea', accent: 'indigo' },
   { day: 'Monday', short: 'Mon', time: '10:00 - 11:30', subject: 'Database Management Systems', code: 'CS305', room: 'B105', lecturer: 'Mr. Vuthy Him', accent: 'cyan' },
   { day: 'Tuesday', short: 'Tue', time: '08:00 - 09:30', subject: 'Web Development', code: 'CS309', room: 'Lab C302', lecturer: 'Ms. Sreypov Lim', accent: 'violet' },
@@ -22,7 +24,7 @@ const schedule = [
   { day: 'Friday', short: 'Fri', time: '14:00 - 15:30', subject: 'Database Management Systems', code: 'CS305', room: 'B105', lecturer: 'Mr. Vuthy Him', accent: 'cyan' },
 ];
 
-const records = [
+const seedRecords = [
   { date: 'Jul 28, 2026', subject: 'Data Structures & Algorithms', code: 'CS301', time: '07:56 AM', status: 'Present' },
   { date: 'Jul 27, 2026', subject: 'Web Development', code: 'CS309', time: '08:08 AM', status: 'Late' },
   { date: 'Jul 25, 2026', subject: 'Database Management Systems', code: 'CS305', time: '09:54 AM', status: 'Present' },
@@ -44,7 +46,7 @@ const attendanceNav = [
   { id: 'attendanceReport', label: 'Attendance report', icon: Download },
 ];
 
-const courseStats = [
+const seedCourseStats = [
   { code: 'CS301', name: 'Data Structures', sessions: 28, present: 27, late: 1, absent: 0, rate: 96.4, color: 'bg-sky-400' },
   { code: 'CS305', name: 'Database Systems', sessions: 26, present: 24, late: 1, absent: 1, rate: 92.3, color: 'bg-sky-400' },
   { code: 'CS309', name: 'Web Development', sessions: 25, present: 24, late: 1, absent: 0, rate: 96, color: 'bg-sky-400' },
@@ -132,6 +134,9 @@ const StudentDashboard = ({ onLogout }) => {
     const saved = localStorage.getItem('studentActiveView');
     return studentViews.has(saved) ? saved : 'dashboard';
   });
+  const [schedule, setSchedule] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [courseStats, setCourseStats] = useState([]);
   const [isDark, setIsDark] = useState(() => ['dark', 'soft-sky'].includes(localStorage.getItem('appTheme')));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('studentSidebarCollapsed') === 'true');
@@ -225,17 +230,52 @@ const StudentDashboard = ({ onLogout }) => {
     };
     try { return { ...defaults, ...JSON.parse(localStorage.getItem('studentSettings') || '{}') }; } catch { return defaults; }
   });
+  useEffect(() => {
+    if (!currentUser.eid) return;
+    const loadStudentData = async () => {
+      try {
+        const [scheduleResponse, attendanceResponse, statsResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/student/${currentUser.eid}/schedule`),
+          fetch(`${API_BASE}/api/student/${currentUser.eid}/attendance`),
+          fetch(`${API_BASE}/api/student/${currentUser.eid}/attendance/stats`),
+        ]);
+        if (scheduleResponse.ok) {
+          const rows = await scheduleResponse.json();
+          const nextSchedule = rows.map((row) => ({ day: row.dayofweek, short: String(row.dayofweek || '').slice(0, 3), time: `${String(row.starttime).slice(0, 5)} - ${String(row.endtime).slice(0, 5)}`, subject: row.subject, code: row.classcode, room: row.classname, lecturer: row.teacher_name || 'Unassigned', accent: 'indigo' }));
+          setSchedule(nextSchedule);
+          setCalendarItems((items) => [
+            ...timetableToCalendarItems(rows.map((row) => ({ id: row.scheduleid, subject: row.subject, day: row.dayofweek, start: String(row.starttime).slice(0, 5), end: String(row.endtime).slice(0, 5), room: row.classname }))),
+            ...items.filter((item) => item.kind === 'reminder' || String(item.id).startsWith('item-')),
+          ]);
+        }
+        if (attendanceResponse.ok) {
+          const rows = await attendanceResponse.json();
+          setRecords(rows.map((row) => ({ date: new Date(row.sessiondate || row.attendedat).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }), subject: row.subject, code: row.classcode, time: row.attendedat ? new Date(row.attendedat).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—', status: row.status })));
+        }
+        if (statsResponse.ok) {
+          const rows = await statsResponse.json();
+          setCourseStats(rows.map((row) => ({ code: row.classcode, name: row.subject || row.classname, sessions: Number(row.sessions || 0), present: Number(row.present || 0), late: Number(row.late || 0), absent: Number(row.absent || 0), rate: Number(row.rate || 0), color: 'bg-sky-400' })));
+        }
+      } catch (error) { console.error('Unable to load student dashboard data:', error); }
+    };
+    loadStudentData();
+  }, [currentUser.eid]);
   const initials = student.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase();
   const attendanceTotals = useMemo(() => {
-    const totals = { Present: 121, Late: 3, Absent: 4, total: 128 };
+    const totals = courseStats.reduce((sum, course) => ({ Present: sum.Present + course.present, Late: sum.Late + course.late, Absent: sum.Absent + course.absent, total: sum.total + course.sessions }), { Present: 0, Late: 0, Absent: 0, total: 0 });
     correctionRequests.filter((request) => request.status === 'Approved').forEach((request) => {
       if (request.recordedStatus === request.expectedStatus) return;
       if (totals[request.recordedStatus] > 0) totals[request.recordedStatus] -= 1;
       totals[request.expectedStatus] = (totals[request.expectedStatus] || 0) + 1;
     });
-    totals.rate = Number(((totals.Present / totals.total) * 100).toFixed(1));
+    totals.rate = totals.total ? Number((((totals.Present + totals.Late) / totals.total) * 100).toFixed(1)) : 0;
     return totals;
-  }, [correctionRequests]);
+  }, [correctionRequests, courseStats]);
+  const attendancePercentages = {
+    present: attendanceTotals.total ? Number(((attendanceTotals.Present / attendanceTotals.total) * 100).toFixed(1)) : 0,
+    late: attendanceTotals.total ? Number(((attendanceTotals.Late / attendanceTotals.total) * 100).toFixed(1)) : 0,
+    absent: attendanceTotals.total ? Number(((attendanceTotals.Absent / attendanceTotals.total) * 100).toFixed(1)) : 0,
+  };
   const displayCourseStats = useMemo(() => courseStats.map((course) => {
     const adjusted = { ...course };
     correctionRequests
@@ -247,9 +287,11 @@ const StudentDashboard = ({ onLogout }) => {
         if (typeof adjusted[from] === 'number' && adjusted[from] > 0) adjusted[from] -= 1;
         if (typeof adjusted[to] === 'number') adjusted[to] += 1;
       });
-    adjusted.rate = Number(((adjusted.present / adjusted.sessions) * 100).toFixed(1));
+    adjusted.rate = adjusted.sessions
+      ? Number((((adjusted.present + adjusted.late) / adjusted.sessions) * 100).toFixed(1))
+      : 0;
     return adjusted;
-  }), [correctionRequests]);
+  }), [correctionRequests, courseStats]);
   const lowAttendanceCourses = displayCourseStats.filter((course) => course.rate < 90);
   const reviewedExcuses = excuseRequests.filter((request) => ['Approved', 'Rejected'].includes(request.status));
   const reviewedCorrections = correctionRequests.filter((request) => ['Approved', 'Rejected'].includes(request.status)).slice(0, 3);
@@ -637,7 +679,7 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
           <div className={`${card} overflow-hidden`}>
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10"><h3 className="font-extrabold">Attendance Breakdown</h3><Fingerprint size={18} className={muted} /></div>
-            <div className="p-4"><div className="flex h-11 overflow-hidden rounded-lg"><div className="w-[82%] bg-sky-400" /><div className="w-[10%] bg-sky-200" /><div className="w-[8%] bg-slate-200 dark:bg-white/10" /></div><div className={`mt-3 flex flex-wrap gap-4 text-[11px] font-semibold ${muted}`}><span><b className="mr-1 text-sky-500">■</b>Present 82%</span><span><b className="mr-1 text-sky-300">■</b>Late 10%</span><span><b className="mr-1 text-slate-300">■</b>Absent 8%</span></div></div>
+            <div className="p-4"><div className="flex h-11 overflow-hidden rounded-lg"><div className="bg-sky-400" style={{ width: `${attendancePercentages.present}%` }} /><div className="bg-sky-200" style={{ width: `${attendancePercentages.late}%` }} /><div className="bg-slate-200 dark:bg-white/10" style={{ width: `${attendancePercentages.absent}%` }} /></div><div className={`mt-3 flex flex-wrap gap-4 text-[11px] font-semibold ${muted}`}><span><b className="mr-1 text-sky-500">■</b>Present {attendancePercentages.present}%</span><span><b className="mr-1 text-sky-300">■</b>Late {attendancePercentages.late}%</span><span><b className="mr-1 text-slate-300">■</b>Absent {attendancePercentages.absent}%</span></div></div>
           </div>
         </div>
       </section>

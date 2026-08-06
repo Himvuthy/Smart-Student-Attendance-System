@@ -12,7 +12,9 @@ import { OFFICIAL_TIMETABLE_KEY, readOfficialTimetable } from './officialTimetab
 import { ATTENDANCE_CORRECTIONS_KEY, readAttendanceCorrections, reviewAttendanceCorrection } from './attendanceCorrections';
 import { downloadCsv } from './csvExport';
 
-const classes = [
+const API_BASE = import.meta.env.VITE_API_URL || 'https://smart-student-attendance-system-nkka.onrender.com';
+
+const seedClasses = [
   { code: 'CS301', name: 'Data Structures', room: 'A201', students: 38, schedule: 'Mon & Thu · 08:00–09:30', rate: 94 },
   { code: 'CS305', name: 'Database Systems', room: 'B105', students: 42, schedule: 'Mon & Wed · 11:00–12:30', rate: 91 },
   { code: 'CS309', name: 'Web Development', room: 'Lab C302', students: 36, schedule: 'Tue & Fri · 08:00–09:30', rate: 96 },
@@ -36,7 +38,7 @@ const seedFingerprintAttempts = [
   { id: 'attempt-3', student: 'Ouk Sreynich', studentId: 'S0001', time: '07:57:02', type: 'Duplicate', detail: 'Repeated scan ignored automatically', status: 'Resolved' },
 ];
 
-const atRiskStudents = [
+const seedAtRiskStudents = [
   { id: 'S0004', name: 'Eng Pheakdey', course: 'CS301', courseName: 'Data Structures', present: 17, late: 2, absent: 7, rate: 68 },
   { id: 'S0003', name: 'Lay Bunthoeun', course: 'CS312', courseName: 'Software Engineering', present: 19, late: 3, absent: 3, rate: 76 },
   { id: 'S0007', name: 'Sam Pheakdey', course: 'CS305', courseName: 'Database Systems', present: 20, late: 4, absent: 2, rate: 82 },
@@ -107,6 +109,9 @@ const TeacherDashboard = ({ onLogout }) => {
   const [globalQuery, setGlobalQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState('CS301');
+  const [classes, setClasses] = useState(seedClasses);
+  const [atRiskStudents, setAtRiskStudents] = useState(seedAtRiskStudents);
+  const [overviewAttendance, setOverviewAttendance] = useState({ verified: 0, total: 0 });
   const [studentQuery, setStudentQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [riskQuery, setRiskQuery] = useState('');
@@ -139,6 +144,49 @@ const TeacherDashboard = ({ onLogout }) => {
     email: currentUser.email || 'vuthy.him@university.edu.kh',
     username: currentUser.username || 'vuthy.him',
   };
+  useEffect(() => {
+    if (!currentUser.eid) return;
+    const loadTeacherData = async () => {
+      try {
+        const [classResponse, scheduleResponse, riskResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/teacher/${currentUser.eid}/classes`),
+          fetch(`${API_BASE}/api/teacher/${currentUser.eid}/schedule`),
+          fetch(`${API_BASE}/api/teacher/${currentUser.eid}/at-risk`),
+        ]);
+        if (classResponse.ok) {
+          const rows = await classResponse.json();
+          const nextClasses = rows.map((row) => ({ classid: row.classid, code: row.classcode, name: row.classname, room: '—', students: Number(row.student_count || 0), schedule: `${row.days || 'Unscheduled'} · ${row.starttime || '—'}–${row.endtime || '—'}`, rate: Number(row.attendance_rate || 0) }));
+          setClasses(nextClasses);
+          if (nextClasses.length) setSelectedClass((current) => nextClasses.some((item) => item.code === current) ? current : nextClasses[0].code);
+          const rosterResponses = await Promise.all(nextClasses.map((item) => fetch(`${API_BASE}/api/classes/${item.classid}/roster`)));
+          const rosters = await Promise.all(rosterResponses.map((response) => response.ok ? response.json() : []));
+          const allRows = rosters.flat();
+          setOverviewAttendance({
+            verified: allRows.filter((row) => ['Present', 'Late'].includes(row.status)).length,
+            total: allRows.length,
+          });
+        }
+        if (scheduleResponse.ok) {
+          const rows = await scheduleResponse.json();
+          setOfficialTimetable(rows.map((row) => ({ id: row.scheduleid, classCode: row.classcode, subject: row.subject, day: row.dayofweek, start: String(row.starttime).slice(0, 5), end: String(row.endtime).slice(0, 5), room: row.classname, teacher: row.teacher_name, teacherEid: currentUser.eid, teacherLecturerId: currentUser.lecturerid })));
+        }
+        if (riskResponse.ok) {
+          const rows = await riskResponse.json();
+          setAtRiskStudents(rows.map((row) => ({ id: row.studentid, name: row.fullname, course: row.classcode, courseName: row.subject || row.classname, present: Number(row.present || 0), late: Number(row.late || 0), absent: Number(row.absent || 0), rate: Number(row.rate || 0) })));
+        }
+      } catch (error) { console.error('Unable to load teacher dashboard data:', error); }
+    };
+    loadTeacherData();
+  }, [currentUser.eid, currentUser.lecturerid]);
+
+  useEffect(() => {
+    const selected = classes.find((item) => item.code === selectedClass);
+    if (!selected?.classid) return;
+    fetch(`${API_BASE}/api/classes/${selected.classid}/roster`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Roster unavailable')))
+      .then((rows) => setAttendanceRows(rows.map((row) => ({ id: row.studentid, name: row.fullname, status: row.status === '-' ? 'Absent' : row.status, time: row.attendedat ? new Date(row.attendedat).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—', verification: row.attendedat ? 'Verified' : 'Pending' }))))
+      .catch((error) => console.error('Unable to load class roster:', error));
+  }, [classes, selectedClass]);
   const initials = teacher.name.split(' ').map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   const assignedTimetable = officialTimetable.filter((entry) => {
     if (entry.teacherLecturerId && currentUser.lecturerid) return String(entry.teacherLecturerId) === String(currentUser.lecturerid);
@@ -270,6 +318,15 @@ const TeacherDashboard = ({ onLogout }) => {
     late: attendanceRows.filter((row) => row.status === 'Late').length,
     absent: attendanceRows.filter((row) => row.status === 'Absent').length,
   }), [attendanceRows]);
+  const todayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+  const todaysClasses = assignedTimetable.filter((entry) => entry.day === todayName);
+  const assignedStudents = classes.reduce((sum, item) => sum + Number(item.students || 0), 0);
+  const attendanceTodayRate = overviewAttendance.total
+    ? Math.round((overviewAttendance.verified / overviewAttendance.total) * 100)
+    : 0;
+  const nextClass = [...todaysClasses]
+    .filter((entry) => entry.start)
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)))[0];
 
   const globalResults = useMemo(() => {
     const value = globalQuery.trim().toLowerCase();
@@ -404,9 +461,9 @@ const TeacherDashboard = ({ onLogout }) => {
       <HeaderBlock eyebrow="Teacher portal" title={`Good morning, ${teacher.name.split(' ')[0]}`} copy="Here is what is happening across your classes today." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Assigned students', '156', 'Across 4 active classes', Users],
-          ['Classes today', '4', 'Next class at 08:00', BookOpen],
-          ['Attendance today', '91%', '142 verified check-ins', CheckCircle2],
+          ['Assigned students', assignedStudents, `Across ${classes.length} active ${classes.length === 1 ? 'class' : 'classes'}`, Users],
+          ['Classes today', todaysClasses.length, nextClass ? `Next class at ${nextClass.start}` : 'No more classes today', BookOpen],
+          ['Attendance today', `${attendanceTodayRate}%`, `${overviewAttendance.verified} verified check-ins`, CheckCircle2],
           ['Pending excuses', excuses.filter((item) => item.status === 'Pending').length, 'Waiting for your review', FileCheck2],
         ].map(([label, value, note, icon]) => <article key={label} className={`${card} p-5`}><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-400/10 dark:text-sky-300">{React.createElement(icon, { size: 18 })}</span><p className={`text-sm font-semibold ${muted}`}>{label}</p></div><p className="mt-5 text-3xl font-black">{value}</p><p className={`mt-1 text-xs ${muted}`}>{note}</p></article>)}
       </div>
