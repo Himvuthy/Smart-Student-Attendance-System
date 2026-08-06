@@ -134,6 +134,7 @@ const StudentDashboard = ({ onLogout }) => {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [reportTab, setReportTab] = useState('summary');
+  const [analyticsRange, setAnalyticsRange] = useState('weekly');
   const [reportQuery, setReportQuery] = useState('');
   const [reportRateFilter, setReportRateFilter] = useState('All');
   const [reportSort, setReportSort] = useState({ key: 'name', direction: 'asc' });
@@ -431,6 +432,37 @@ const StudentDashboard = ({ onLogout }) => {
     return approved ? { ...record, status: approved.expectedStatus, corrected: true } : record;
   }), [correctionRequests, records]);
 
+  const analyticsData = useMemo(() => {
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    const normalizedRecords = effectiveRecords
+      .map((record) => ({ ...record, timestamp: new Date(record.date).getTime() }))
+      .filter((record) => Number.isFinite(record.timestamp));
+    const rateForRange = (start, finish) => {
+      const rows = normalizedRecords.filter((record) => record.timestamp >= start.getTime() && record.timestamp <= finish.getTime());
+      return rows.length ? Math.round((rows.filter((record) => ['Present', 'Late'].includes(record.status)).length / rows.length) * 100) : 0;
+    };
+    if (analyticsRange === 'monthly') {
+      return Array.from({ length: 4 }, (_, index) => {
+        const finish = new Date(end);
+        finish.setDate(end.getDate() - ((3 - index) * 7));
+        const start = new Date(finish);
+        start.setDate(finish.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+        return { label: `Week ${index + 1}`, value: rateForRange(start, finish) };
+      });
+    }
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(end);
+      date.setDate(end.getDate() - (6 - index));
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const finish = new Date(date);
+      finish.setHours(23, 59, 59, 999);
+      return { label: date.toLocaleDateString(undefined, { weekday: 'short' }), value: rateForRange(start, finish) };
+    });
+  }, [analyticsRange, effectiveRecords]);
+
   const filteredRecords = useMemo(() => effectiveRecords.filter((record) => {
     const matchesSearch = `${record.subject} ${record.code} ${record.date}`.toLowerCase().includes(query.toLowerCase());
     return matchesSearch && (statusFilter === 'All' || record.status === statusFilter);
@@ -618,8 +650,8 @@ const StudentDashboard = ({ onLogout }) => {
       <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
         <div className={`${card} overflow-hidden`}>
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
-            <div><h3 className="font-extrabold">Attendance Analytics</h3><p className={`mt-0.5 text-xs ${muted}`}>Weekly fingerprint check-in performance</p></div>
-            <div className="flex rounded-xl border border-slate-200 p-1 text-xs font-bold dark:border-white/10"><span className="rounded-lg bg-white px-3 py-1.5 shadow-sm dark:bg-white/10">Weekly</span><span className={`px-3 py-1.5 ${muted}`}>Monthly</span></div>
+            <div><h3 className="font-extrabold">Attendance Analytics</h3><p className={`mt-0.5 text-xs ${muted}`}>{analyticsRange === 'weekly' ? 'Last 7 days' : 'Last 4 weeks'} fingerprint check-in performance</p></div>
+            <div className="flex rounded-xl border border-slate-200 p-1 text-xs font-bold dark:border-white/10">{['weekly', 'monthly'].map((range) => <button key={range} type="button" onClick={() => setAnalyticsRange(range)} aria-pressed={analyticsRange === range} className={`rounded-lg px-3 py-1.5 capitalize transition ${analyticsRange === range ? 'bg-white shadow-sm dark:bg-white/10' : muted}`}>{range}</button>)}</div>
           </div>
           <div className="p-5">
             <div className="relative h-64 pl-9">
@@ -627,11 +659,11 @@ const StudentDashboard = ({ onLogout }) => {
                 {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-slate-100 dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
               </div>
               <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
-                {[{ d: 'Mon', v: 95 }, { d: 'Tue', v: 88 }, { d: 'Wed', v: 100 }, { d: 'Thu', v: 75 }, { d: 'Fri', v: 92 }, { d: 'Sat', v: 68 }, { d: 'Sun', v: 85 }].map(({ d, v }) => (
-                  <div key={d} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                    <span className={`text-[10px] font-bold ${v === 75 ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : muted}`}>{v}%</span>
-                    <div className={`w-full max-w-16 rounded-xl ${v === 75 ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v * 1.75}px` }} />
-                    <span className={`text-xs font-medium ${muted}`}>{d}</span>
+                {analyticsData.map(({ label, value }, index) => (
+                  <div key={`${label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                    <span className={`text-[10px] font-bold ${index === analyticsData.length - 1 ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : muted}`}>{value}%</span>
+                    <div className={`w-full max-w-16 rounded-xl ${index === analyticsData.length - 1 ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${Math.max(value * 1.75, value ? 4 : 0)}px` }} />
+                    <span className={`text-xs font-medium ${muted}`}>{label}</span>
                   </div>
                 ))}
               </div>
