@@ -1708,44 +1708,54 @@ const AdminDashboard = ({ onLogout }) => {
                     </div>
                     <div className="p-5">
                       <div className="relative h-64 pl-9">
-                        <div className="absolute inset-y-0 left-9 right-0 flex flex-col justify-between text-[10px] text-slate-400">
-                          {[100, 75, 50, 25, 0].map((n) => <div key={n} className="relative border-t border-[#e2e8f0] dark:border-white/10"><span className="absolute -left-9 -top-2">{n}%</span></div>)}
-                        </div>
-                        <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
-                          {(() => {
-                            const dates = [];
-                            const curr = new Date();
-                            const dayOfWeek = curr.getDay(); // 0 is Sun, 1 is Mon
-                            const first = curr.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                            for (let i = 0; i < 7; i++) {
-                              const day = new Date(curr.getTime());
-                              day.setDate(first + i);
-                              dates.push(day);
-                            }
-                            return dates.map((dateObj, i) => {
-                              const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-                              const d = (adminDashboardData.weeklyData || []).find(wd => {
-                                const wdDate = new Date(wd.date);
-                                return wdDate.getFullYear() === dateObj.getFullYear() && 
-                                       wdDate.getMonth() === dateObj.getMonth() && 
-                                       wdDate.getDate() === dateObj.getDate();
-                              }) || { present_count: 0, total_count: 0 };
-                              
-                              const v = d.total_count > 0 ? Math.round((d.present_count / d.total_count) * 100) : 0;
-                              const isToday = new Date().getFullYear() === dateObj.getFullYear() && 
-                                              new Date().getMonth() === dateObj.getMonth() && 
-                                              new Date().getDate() === dateObj.getDate();
-                              
-                              return (
-                                <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                                  <span className={`text-[10px] font-bold ${isToday ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : 'text-slate-500'}`}>{v}%</span>
-                                  <div className={`w-full max-w-16 rounded-xl ${isToday ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v > 0 ? Math.max(v * 1.75, 4) : 0}px` }} />
-                                  <span className={`text-xs font-medium text-slate-500`}>{dateStr}</span>
-                                </div>
-                              );
-                            });
-                          })()}
-                        </div>
+                        {(() => {
+                          const maxCount = Math.max(4, ...(adminDashboardData.weeklyData || []).map(d => d.present_count || 0));
+                          const tickMax = Math.ceil(maxCount / 4) * 4;
+                          const ticks = [tickMax, tickMax * 0.75, tickMax * 0.5, tickMax * 0.25, 0];
+                          
+                          return (
+                            <>
+                              <div className="absolute inset-y-0 left-9 right-0 flex flex-col justify-between text-[10px] text-slate-400">
+                                {ticks.map((n) => <div key={n} className="relative border-t border-[#e2e8f0] dark:border-white/10"><span className="absolute -left-9 -top-2">{n}</span></div>)}
+                              </div>
+                              <div className="absolute inset-0 left-11 flex items-end justify-around gap-3 pt-4">
+                                {(() => {
+                                  const dates = [];
+                                  const curr = new Date();
+                                  const dayOfWeek = curr.getDay(); // 0 is Sun, 1 is Mon
+                                  const first = curr.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                                  for (let i = 0; i < 7; i++) {
+                                    const day = new Date(curr.getTime());
+                                    day.setDate(first + i);
+                                    dates.push(day);
+                                  }
+                                  return dates.map((dateObj, i) => {
+                                    const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                                    const d = (adminDashboardData.weeklyData || []).find(wd => {
+                                      const wdDate = new Date(wd.date);
+                                      return wdDate.getFullYear() === dateObj.getFullYear() && 
+                                             wdDate.getMonth() === dateObj.getMonth() && 
+                                             wdDate.getDate() === dateObj.getDate();
+                                    }) || { present_count: 0, total_count: 0 };
+                                    
+                                    const v = d.present_count || 0;
+                                    const isToday = new Date().getFullYear() === dateObj.getFullYear() && 
+                                                    new Date().getMonth() === dateObj.getMonth() && 
+                                                    new Date().getDate() === dateObj.getDate();
+                                    
+                                    return (
+                                      <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                                        <span className={`text-[10px] font-bold ${isToday ? 'rounded-md bg-sky-100 px-2 py-1 text-sky-800 shadow-sm' : 'text-slate-500'}`}>{v}</span>
+                                        <div className={`w-full max-w-16 rounded-xl ${isToday ? 'bg-gradient-to-t from-[#3b82f6] to-[#93c5fd] shadow-lg shadow-sky-400/20' : 'bg-[repeating-linear-gradient(135deg,#f1f0f4_0px,#f1f0f4_4px,#e7e5eb_4px,#e7e5eb_6px)] dark:bg-[repeating-linear-gradient(135deg,#20283a_0px,#20283a_4px,#2b3448_4px,#2b3448_6px)]'}`} style={{ height: `${v > 0 ? Math.max((v / tickMax) * 175, 4) : 0}px` }} />
+                                        <span className={`text-xs font-medium text-slate-500`}>{dateStr}</span>
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
