@@ -1,10 +1,29 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'https://smart-student-attendance-system-nkka.onrender.com';
 export const EXCUSE_CACHE_KEY = 'attendanceExcuseRequests';
 
+const normalizeStatus = (value) => {
+  const status = String(value || 'Pending').trim().toLowerCase();
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  return 'Pending';
+};
+
+const normalizeExcuseRequest = (request = {}) => ({
+  ...request,
+  id: request.id ?? request.requestid,
+  student: request.student ?? request.student_name ?? 'Student',
+  studentId: request.studentId ?? request.studentid,
+  studentUserId: request.studentUserId ?? request.studentuserid,
+  course: request.course ?? request.subject ?? 'Unassigned course',
+  date: request.date ?? request.requestdate,
+  submitted: request.submitted ?? request.createdat,
+  status: normalizeStatus(request.status),
+});
+
 export const readExcuseCache = (fallback = []) => {
   try {
     const saved = JSON.parse(localStorage.getItem(EXCUSE_CACHE_KEY) || 'null');
-    return Array.isArray(saved) ? saved : fallback;
+    return (Array.isArray(saved) ? saved : fallback).map(normalizeExcuseRequest);
   } catch {
     return fallback;
   }
@@ -37,17 +56,24 @@ const parseResponse = async (response) => {
 
 export const fetchExcuseRequests = async (studentUserId) => {
   const query = studentUserId ? `?studentUserId=${encodeURIComponent(studentUserId)}` : '';
-  return parseResponse(await fetch(`${API_BASE}/api/excuse-requests${query}`));
+  const requests = await parseResponse(await fetch(`${API_BASE}/api/excuse-requests${query}`));
+  return Array.isArray(requests) ? requests.map(normalizeExcuseRequest) : [];
 };
 
-export const createExcuseRequest = async (request) => parseResponse(await fetch(`${API_BASE}/api/excuse-requests`, {
+export const createExcuseRequest = async (request) => normalizeExcuseRequest(await parseResponse(await fetch(`${API_BASE}/api/excuse-requests`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(request),
-}));
+  body: JSON.stringify({
+    studentUserId: request.studentUserId,
+    scheduleid: request.scheduleid || null,
+    requestdate: request.requestdate || request.date,
+    reason: request.reason,
+    details: request.details,
+  }),
+})));
 
-export const reviewExcuseRequest = async (requestId, status, reviewerUserId) => parseResponse(await fetch(`${API_BASE}/api/excuse-requests/${requestId}`, {
+export const reviewExcuseRequest = async (requestId, status, reviewerUserId) => normalizeExcuseRequest(await parseResponse(await fetch(`${API_BASE}/api/excuse-requests/${requestId}`, {
   method: 'PATCH',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ status, reviewerUserId }),
-}));
+})));

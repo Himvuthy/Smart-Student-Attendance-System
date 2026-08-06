@@ -213,7 +213,7 @@ const StudentDashboard = ({ onLogout }) => {
         const scheduleRows = scheduleResponse.ok ? await scheduleResponse.json() : [];
         const statsRows = statsResponse.ok ? await statsResponse.json() : [];
         if (scheduleResponse.ok) {
-          const nextSchedule = scheduleRows.map((row) => ({ day: String(row.dayofweek || '').trim(), short: String(row.dayofweek || '').trim().slice(0, 3), time: `${String(row.starttime).slice(0, 5)} - ${String(row.endtime).slice(0, 5)}`, subject: row.subject, code: row.subject || row.classcode, classCode: row.classcode, room: row.classname, lecturer: String(row.teacher_name || 'Unassigned').trim(), accent: 'indigo' }));
+          const nextSchedule = scheduleRows.map((row) => ({ scheduleid: row.scheduleid, day: String(row.dayofweek || '').trim(), short: String(row.dayofweek || '').trim().slice(0, 3), time: `${String(row.starttime).slice(0, 5)} - ${String(row.endtime).slice(0, 5)}`, subject: row.subject, code: row.subject || row.classcode, classCode: row.classcode, room: row.classname, lecturer: String(row.teacher_name || 'Unassigned').trim(), accent: 'indigo' }));
           setSchedule(nextSchedule);
           setCalendarItems((items) => [
             ...timetableToCalendarItems(scheduleRows.map((row) => ({ id: row.scheduleid, subject: row.subject, day: row.dayofweek, start: String(row.starttime).slice(0, 5), end: String(row.endtime).slice(0, 5), room: row.classname }))),
@@ -927,6 +927,7 @@ const StudentDashboard = ({ onLogout }) => {
         studentUserId: currentUser.userid,
         studentId: student.id,
         studentName: student.name,
+        scheduleid: schedule.find((item) => item.code === submittedDraft.course)?.scheduleid,
         ...submittedDraft,
       });
       setExcuseRequests((items) => [savedRequest, ...items.filter((item) => item.id !== temporaryRequest.id)]);

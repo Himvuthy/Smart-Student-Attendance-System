@@ -518,12 +518,13 @@ const TeacherDashboard = ({ onLogout }) => {
   );
 
   const updateExcuseStatus = async (request, status) => {
-    setExcuses((items) => items.map((item) => item.id === request.id ? { ...item, status } : item));
+    setExcuses((items) => items.map((item) => String(item.id) === String(request.id) ? { ...item, status } : item));
     try {
       const updatedRequest = await reviewExcuseRequest(request.id, status, currentUser.userid);
-      setExcuses((items) => items.map((item) => item.id === request.id ? updatedRequest : item));
+      setExcuses((items) => items.map((item) => String(item.id) === String(request.id) ? { ...item, ...updatedRequest, status: updatedRequest.status } : item));
     } catch {
-      // The optimistic update remains in the shared cache for the local demo.
+      setExcuses((items) => items.map((item) => String(item.id) === String(request.id) ? { ...item, status: request.status } : item));
+      setRequestToast('The review could not be saved. Please try again.');
     }
   };
 
