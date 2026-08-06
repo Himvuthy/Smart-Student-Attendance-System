@@ -134,7 +134,6 @@ const StudentDashboard = ({ onLogout }) => {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [reportTab, setReportTab] = useState('summary');
-  const [analyticsRange, setAnalyticsRange] = useState('weekly');
   const [reportQuery, setReportQuery] = useState('');
   const [reportRateFilter, setReportRateFilter] = useState('All');
   const [reportSort, setReportSort] = useState({ key: 'name', direction: 'asc' });
@@ -432,38 +431,6 @@ const StudentDashboard = ({ onLogout }) => {
     return approved ? { ...record, status: approved.expectedStatus, corrected: true } : record;
   }), [correctionRequests, records]);
 
-  const analyticsData = useMemo(() => {
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    const normalizedRecords = effectiveRecords
-      .map((record) => ({ ...record, timestamp: new Date(record.date).getTime() }))
-      .filter((record) => Number.isFinite(record.timestamp));
-    const rateForRange = (start, finish) => {
-      const rows = normalizedRecords.filter((record) => record.timestamp >= start.getTime() && record.timestamp <= finish.getTime());
-      const attended = rows.filter((record) => ['Present', 'Late'].includes(record.status)).length;
-      return { value: rows.length ? Math.round((attended / rows.length) * 100) : null, attended, total: rows.length };
-    };
-    if (analyticsRange === 'monthly') {
-      return Array.from({ length: 4 }, (_, index) => {
-        const finish = new Date(end);
-        finish.setDate(end.getDate() - ((3 - index) * 7));
-        const start = new Date(finish);
-        start.setDate(finish.getDate() - 6);
-        start.setHours(0, 0, 0, 0);
-        return { label: `Week ${index + 1}`, ...rateForRange(start, finish) };
-      });
-    }
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(end);
-      date.setDate(end.getDate() - (6 - index));
-      const start = new Date(date);
-      start.setHours(0, 0, 0, 0);
-      const finish = new Date(date);
-      finish.setHours(23, 59, 59, 999);
-      return { label: date.toLocaleDateString(undefined, { weekday: 'short' }), ...rateForRange(start, finish) };
-    });
-  }, [analyticsRange, effectiveRecords]);
-  const latestAnalyticsIndex = analyticsData.reduce((latest, item, index) => item.total > 0 ? index : latest, -1);
 
   const filteredRecords = useMemo(() => effectiveRecords.filter((record) => {
     const matchesSearch = `${record.subject} ${record.code} ${record.date}`.toLowerCase().includes(query.toLowerCase());
@@ -649,7 +616,8 @@ const StudentDashboard = ({ onLogout }) => {
         ))}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+      <section className="grid gap-4 md:grid-cols-2">
+        {/* Attendance analytics chart removed from the student overview.
         <div className={`${card} overflow-hidden`}>
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
             <div><h3 className="font-extrabold">Attendance Rate</h3><p className={`mt-0.5 text-xs ${muted}`}>{analyticsRange === 'weekly' ? 'Daily results from the last 7 days' : 'Weekly results from the last 28 days'} based on database attendance records</p></div>
@@ -673,8 +641,9 @@ const StudentDashboard = ({ onLogout }) => {
             <p className={`mt-3 text-center text-[10px] ${muted}`}>Attendance rate = (Present + Late) ÷ recorded sessions. “No data” means the database has no session record for that period.</p>
           </div>
         </div>
+        */}
 
-        <div className="space-y-4">
+        <div className="contents">
           <div className={`${card} overflow-hidden`}>
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10"><h3 className="font-extrabold">Today’s Classes</h3><span className={`flex items-center gap-2 text-xs ${muted}`}><span className="h-2 w-2 rounded-full bg-emerald-400" />2 sessions</span></div>
             <div className="space-y-3 p-4">
