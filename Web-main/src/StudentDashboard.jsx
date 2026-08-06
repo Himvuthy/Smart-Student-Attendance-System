@@ -13,27 +13,6 @@ import { downloadCsv } from './csvExport';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://smart-student-attendance-system-nkka.onrender.com';
 
-const seedSchedule = [
-  { day: 'Monday', short: 'Mon', time: '08:00 - 09:30', subject: 'Data Structures & Algorithms', code: 'CS301', room: 'A201', lecturer: 'Dr. Lina Chea', accent: 'indigo' },
-  { day: 'Monday', short: 'Mon', time: '10:00 - 11:30', subject: 'Database Management Systems', code: 'CS305', room: 'B105', lecturer: 'Mr. Vuthy Him', accent: 'cyan' },
-  { day: 'Tuesday', short: 'Tue', time: '08:00 - 09:30', subject: 'Web Development', code: 'CS309', room: 'Lab C302', lecturer: 'Ms. Sreypov Lim', accent: 'violet' },
-  { day: 'Tuesday', short: 'Tue', time: '10:00 - 11:30', subject: 'Software Engineering', code: 'CS312', room: 'A108', lecturer: 'Dr. Dara Sok', accent: 'amber' },
-  { day: 'Wednesday', short: 'Wed', time: '08:00 - 09:30', subject: 'Data Structures & Algorithms', code: 'CS301', room: 'A201', lecturer: 'Dr. Lina Chea', accent: 'indigo' },
-  { day: 'Wednesday', short: 'Wed', time: '13:00 - 14:30', subject: 'Web Development', code: 'CS309', room: 'Lab C302', lecturer: 'Ms. Sreypov Lim', accent: 'violet' },
-  { day: 'Thursday', short: 'Thu', time: '10:00 - 11:30', subject: 'Computer Networks', code: 'CS315', room: 'B203', lecturer: 'Mr. Sothea Kim', accent: 'rose' },
-  { day: 'Friday', short: 'Fri', time: '14:00 - 15:30', subject: 'Database Management Systems', code: 'CS305', room: 'B105', lecturer: 'Mr. Vuthy Him', accent: 'cyan' },
-];
-
-const seedRecords = [
-  { date: 'Jul 28, 2026', subject: 'Data Structures & Algorithms', code: 'CS301', time: '07:56 AM', status: 'Present' },
-  { date: 'Jul 27, 2026', subject: 'Web Development', code: 'CS309', time: '08:08 AM', status: 'Late' },
-  { date: 'Jul 25, 2026', subject: 'Database Management Systems', code: 'CS305', time: '09:54 AM', status: 'Present' },
-  { date: 'Jul 24, 2026', subject: 'Software Engineering', code: 'CS312', time: '--', status: 'Absent' },
-  { date: 'Jul 23, 2026', subject: 'Computer Networks', code: 'CS315', time: '10:01 AM', status: 'Present' },
-  { date: 'Jul 22, 2026', subject: 'Data Structures & Algorithms', code: 'CS301', time: '07:52 AM', status: 'Present' },
-  { date: 'Jul 21, 2026', subject: 'Web Development', code: 'CS309', time: '07:59 AM', status: 'Present' },
-];
-
 const nav = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'attendance', label: 'My attendance', icon: CalendarDays },
@@ -44,14 +23,6 @@ const attendanceNav = [
   { id: 'courseBreakdown', label: 'Course breakdown', icon: GraduationCap },
   { id: 'excuseRequests', label: 'Excuse requests', icon: FileCheck2 },
   { id: 'attendanceReport', label: 'Attendance report', icon: Download },
-];
-
-const seedCourseStats = [
-  { code: 'CS301', name: 'Data Structures', sessions: 28, present: 27, late: 1, absent: 0, rate: 96.4, color: 'bg-sky-400' },
-  { code: 'CS305', name: 'Database Systems', sessions: 26, present: 24, late: 1, absent: 1, rate: 92.3, color: 'bg-sky-400' },
-  { code: 'CS309', name: 'Web Development', sessions: 25, present: 24, late: 1, absent: 0, rate: 96, color: 'bg-sky-400' },
-  { code: 'CS312', name: 'Software Engineering', sessions: 25, present: 22, late: 0, absent: 3, rate: 88, color: 'bg-sky-400' },
-  { code: 'CS315', name: 'Computer Networks', sessions: 24, present: 24, late: 0, absent: 0, rate: 100, color: 'bg-sky-400' },
 ];
 
 const viewNames = { dashboard: 'Overview', attendance: 'My attendance', schedule: 'Class schedule', courseBreakdown: 'Course breakdown', excuseRequests: 'Excuse requests', attendanceReport: 'Attendance report', profile: 'My profile', settings: 'Settings' };
@@ -92,7 +63,7 @@ const getWeekNumber = (value) => {
 };
 
 const timetableToCalendarItems = (entries) => entries.map((entry) => {
-  const day = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].indexOf(entry.day) + 1;
+  const day = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(String(entry.day || '').trim()) + 1;
   const [startHour, startMinute] = String(entry.start || '08:00').split(':').map(Number);
   const [endHour, endMinute] = String(entry.end || '09:00').split(':').map(Number);
   const durationMinutes = Math.max(60, (endHour * 60 + endMinute) - (startHour * 60 + startMinute));
@@ -100,7 +71,7 @@ const timetableToCalendarItems = (entries) => entries.map((entry) => {
     id: `official-${entry.id}`,
     kind: 'official',
     day: day > 0 ? day : 1,
-    row: Math.max(1, startHour - 7),
+    row: Math.max(1, startHour - 6),
     span: Math.max(1, Math.round(durationMinutes / 60)),
     title: entry.subject,
     time: `${entry.start} - ${entry.end}`,
@@ -186,7 +157,7 @@ const StudentDashboard = ({ onLogout }) => {
   const calendarYear = calendarDate.getFullYear();
   const calendarMonth = calendarDate.getMonth();
   const weekStart = startOfWeek(calendarDate);
-  const weekDays = Array.from({ length: 5 }, (_, index) => addDays(weekStart, index));
+  const weekDays = Array.from({ length: 6 }, (_, index) => addDays(weekStart, index));
   const officialCalendarItems = calendarItems.filter((item) => item.kind === 'official');
   const calendarClassNames = [...new Set(officialCalendarItems.map((item) => item.title).filter(Boolean))];
   const weeklyClassCount = officialCalendarItems.length;
@@ -239,12 +210,13 @@ const StudentDashboard = ({ onLogout }) => {
           fetch(`${API_BASE}/api/student/${currentUser.eid}/attendance`),
           fetch(`${API_BASE}/api/student/${currentUser.eid}/attendance/stats`),
         ]);
+        const scheduleRows = scheduleResponse.ok ? await scheduleResponse.json() : [];
+        const statsRows = statsResponse.ok ? await statsResponse.json() : [];
         if (scheduleResponse.ok) {
-          const rows = await scheduleResponse.json();
-          const nextSchedule = rows.map((row) => ({ day: row.dayofweek, short: String(row.dayofweek || '').slice(0, 3), time: `${String(row.starttime).slice(0, 5)} - ${String(row.endtime).slice(0, 5)}`, subject: row.subject, code: row.classcode, room: row.classname, lecturer: row.teacher_name || 'Unassigned', accent: 'indigo' }));
+          const nextSchedule = scheduleRows.map((row) => ({ day: String(row.dayofweek || '').trim(), short: String(row.dayofweek || '').trim().slice(0, 3), time: `${String(row.starttime).slice(0, 5)} - ${String(row.endtime).slice(0, 5)}`, subject: row.subject, code: row.subject || row.classcode, classCode: row.classcode, room: row.classname, lecturer: String(row.teacher_name || 'Unassigned').trim(), accent: 'indigo' }));
           setSchedule(nextSchedule);
           setCalendarItems((items) => [
-            ...timetableToCalendarItems(rows.map((row) => ({ id: row.scheduleid, subject: row.subject, day: row.dayofweek, start: String(row.starttime).slice(0, 5), end: String(row.endtime).slice(0, 5), room: row.classname }))),
+            ...timetableToCalendarItems(scheduleRows.map((row) => ({ id: row.scheduleid, subject: row.subject, day: row.dayofweek, start: String(row.starttime).slice(0, 5), end: String(row.endtime).slice(0, 5), room: row.classname }))),
             ...items.filter((item) => item.kind === 'reminder' || String(item.id).startsWith('item-')),
           ]);
         }
@@ -252,9 +224,13 @@ const StudentDashboard = ({ onLogout }) => {
           const rows = await attendanceResponse.json();
           setRecords(rows.map((row) => ({ date: new Date(row.sessiondate || row.attendedat).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }), subject: row.subject, code: row.classcode, time: row.attendedat ? new Date(row.attendedat).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—', status: row.status })));
         }
-        if (statsResponse.ok) {
-          const rows = await statsResponse.json();
-          setCourseStats(rows.map((row) => ({ code: row.classcode, name: row.subject || row.classname, sessions: Number(row.sessions || 0), present: Number(row.present || 0), late: Number(row.late || 0), absent: Number(row.absent || 0), rate: Number(row.rate || 0), color: 'bg-sky-400' })));
+        if (scheduleResponse.ok || statsResponse.ok) {
+          const statsBySchedule = new Map(statsRows.map((row) => [String(row.scheduleid), row]));
+          const sourceRows = scheduleRows.length ? scheduleRows : statsRows;
+          setCourseStats(sourceRows.map((row) => {
+            const stats = statsBySchedule.get(String(row.scheduleid)) || row;
+            return { id: row.scheduleid, code: row.subject || row.classcode, classCode: row.classcode, name: row.subject || row.classname, sessions: Number(stats.sessions || 0), present: Number(stats.present || 0), late: Number(stats.late || 0), absent: Number(stats.absent || 0), rate: Number(stats.rate || 0), color: 'bg-sky-400' };
+          }));
         }
       } catch (error) { console.error('Unable to load student dashboard data:', error); }
     };
@@ -454,7 +430,7 @@ const StudentDashboard = ({ onLogout }) => {
       && request.status === 'Approved'
     ));
     return approved ? { ...record, status: approved.expectedStatus, corrected: true } : record;
-  }), [correctionRequests]);
+  }), [correctionRequests, records]);
 
   const filteredRecords = useMemo(() => effectiveRecords.filter((record) => {
     const matchesSearch = `${record.subject} ${record.code} ${record.date}`.toLowerCase().includes(query.toLowerCase());
@@ -487,7 +463,7 @@ const StudentDashboard = ({ onLogout }) => {
     const classes = schedule.map((item) => ({ title: item.subject, subtitle: `${item.code} · ${item.room}`, view: 'schedule', icon: BookOpen }));
     const attendance = effectiveRecords.map((item) => ({ title: item.subject, subtitle: `${item.date} · ${item.status}`, view: 'attendance', filter: item.subject, icon: CalendarDays }));
     return [...pages, ...classes, ...attendance].filter((item) => `${item.title} ${item.subtitle}`.toLowerCase().includes(text)).slice(0, 6);
-  }, [effectiveRecords, globalQuery]);
+  }, [effectiveRecords, globalQuery, schedule]);
 
   const openSearchResult = (result) => {
     setActiveView(result.view);
@@ -504,7 +480,7 @@ const StudentDashboard = ({ onLogout }) => {
 
   const openEditReminder = (item) => {
     setEditingEventId(item.id);
-    setReminderDraft({ title: item.title, day: item.day, hour: item.row + 7, room: item.room || '' });
+    setReminderDraft({ title: item.title, day: item.day, hour: item.row + 6, room: item.room || '' });
     setSelectedEvent(null);
     setReminderOpen(true);
   };
@@ -783,12 +759,12 @@ const StudentDashboard = ({ onLogout }) => {
             </div>
           ) : (
           <div className="min-w-[850px]">
-            <div className="grid grid-cols-[64px_repeat(5,1fr)] border-b border-slate-200 dark:border-white/10">
+            <div className="grid grid-cols-[64px_repeat(6,1fr)] border-b border-slate-200 dark:border-white/10">
               <div className={`p-3 text-center text-[10px] ${muted}`}>UTC+7</div>
               {weekDays.map((date) => <div key={date.toISOString()} className={`border-l border-slate-200 p-3 text-center dark:border-white/10 ${sameDate(date, new Date()) ? 'bg-sky-50/50 dark:bg-sky-400/5' : ''}`}><p className="text-sm font-black">{String(date.getDate()).padStart(2, '0')}</p><p className={`text-[10px] ${muted}`}>{DAY_NAMES[date.getDay()]}</p></div>)}
             </div>
-            <div className="relative grid min-h-[640px] grid-cols-[64px_repeat(5,1fr)] grid-rows-[repeat(8,minmax(76px,1fr))]">
-              {[8,9,10,11,12,13,14,15].map((hour, row) => <React.Fragment key={hour}><div style={{ gridColumn: 1, gridRow: row + 1 }} className={`border-b border-slate-100 px-2 pt-3 text-[10px] dark:border-white/10 ${muted}`}>{String(hour > 12 ? hour - 12 : hour).padStart(2,'0')} {hour >= 12 ? 'PM' : 'AM'}</div>{[1,2,3,4,5].map((day) => <div key={day} style={{ gridColumn: day + 1, gridRow: row + 1 }} className="border-b border-l border-slate-100 dark:border-white/10" />)}</React.Fragment>)}
+            <div className="relative grid min-h-[684px] grid-cols-[64px_repeat(6,1fr)] grid-rows-[repeat(9,minmax(76px,1fr))]">
+              {[7,8,9,10,11,12,13,14,15].map((hour, row) => <React.Fragment key={hour}><div style={{ gridColumn: 1, gridRow: row + 1 }} className={`border-b border-slate-100 px-2 pt-3 text-[10px] dark:border-white/10 ${muted}`}>{String(hour > 12 ? hour - 12 : hour).padStart(2,'0')} {hour >= 12 ? 'PM' : 'AM'}</div>{[1,2,3,4,5,6].map((day) => <div key={day} style={{ gridColumn: day + 1, gridRow: row + 1 }} className="border-b border-l border-slate-100 dark:border-white/10" />)}</React.Fragment>)}
               {calendarItems.filter((event) => visibleClasses[event.title] !== false).map((event) => {
                 const quietTone = {
                   'Data Structures': 'bg-sky-50/80 border-sky-300 dark:bg-sky-400/10 dark:border-sky-400/60',
@@ -895,7 +871,7 @@ const StudentDashboard = ({ onLogout }) => {
       <HeaderBlock eyebrow="Semester performance" title="Attendance by course" copy="See which classes are strongest and where your attendance needs attention." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {displayCourseStats.map((course) => (
-            <article key={course.code} className={`${card} group overflow-hidden shadow-[0_10px_28px_rgba(39,55,105,0.11)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(73,85,160,0.17)] dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]`}>
+            <article key={course.id || course.code} className={`${card} group overflow-hidden shadow-[0_10px_28px_rgba(39,55,105,0.11)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(73,85,160,0.17)] dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]`}>
               <div className="p-5">
                 <div className="flex items-start justify-between">
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700 transition duration-300 group-hover:scale-105 dark:bg-violet-400/10 dark:text-violet-300">{course.code.slice(2)}</span>
@@ -969,7 +945,7 @@ const StudentDashboard = ({ onLogout }) => {
         <HeaderBlock eyebrow="Absence support" title="Request an excuse" copy="Submit an explanation for a missed class." />
         <div className="mt-6 space-y-4">
           <label className="block text-xs font-bold">Absence date<input type="date" required value={excuseDraft.date} onChange={(e) => setExcuseDraft((value) => ({ ...value, date: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-transparent p-3 text-sm dark:border-white/10" /></label>
-          <label className="block text-xs font-bold">Course<select value={excuseDraft.course} onChange={(e) => setExcuseDraft((value) => ({ ...value, course: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#151d2c]">{displayCourseStats.map((course) => <option key={course.code} value={course.code}>{course.code} — {course.name}</option>)}</select></label>
+          <label className="block text-xs font-bold">Course<select value={excuseDraft.course} onChange={(e) => setExcuseDraft((value) => ({ ...value, course: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#151d2c]">{displayCourseStats.map((course) => <option key={course.id || course.code} value={course.code}>{course.code} — {course.name}</option>)}</select></label>
           <label className="block text-xs font-bold">Reason<select value={excuseDraft.reason} onChange={(e) => setExcuseDraft((value) => ({ ...value, reason: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#151d2c]">{['Medical','Family emergency','University activity','Transportation','Other'].map((reason) => <option key={reason}>{reason}</option>)}</select></label>
           <label className="block text-xs font-bold">Explanation<textarea required rows="4" value={excuseDraft.details} onChange={(e) => setExcuseDraft((value) => ({ ...value, details: e.target.value }))} className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-transparent p-3 text-sm dark:border-white/10" placeholder="Explain your absence..." /></label>
           {excuseFeedback && <p role="status" className="rounded-xl bg-sky-50 px-3 py-2.5 text-xs font-semibold text-sky-800">{excuseFeedback}</p>}
@@ -1081,7 +1057,7 @@ const StudentDashboard = ({ onLogout }) => {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {visibleReportCourses.map((course) => (
-                  <tr key={course.code} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
+                  <tr key={course.id || course.code} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className={`h-2.5 w-2.5 rounded-full ${course.color}`} />
