@@ -252,6 +252,20 @@ const StudentDashboard = ({ onLogout }) => {
     late: attendanceTotals.total ? Number(((attendanceTotals.Late / attendanceTotals.total) * 100).toFixed(1)) : 0,
     absent: attendanceTotals.total ? Number(((attendanceTotals.Absent / attendanceTotals.total) * 100).toFixed(1)) : 0,
   };
+  const nextStudentClass = useMemo(() => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const dayIndexes = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+    return schedule
+      .map((item) => {
+        const [hours = 0, minutes = 0] = String(item.time || '').split(' - ')[0].split(':').map(Number);
+        const startMinutes = hours * 60 + minutes;
+        let daysAhead = (dayIndexes[item.day] - now.getDay() + 7) % 7;
+        if (daysAhead === 0 && startMinutes < currentMinutes) daysAhead = 7;
+        return { ...item, daysAhead, startMinutes };
+      })
+      .sort((left, right) => left.daysAhead - right.daysAhead || left.startMinutes - right.startMinutes)[0] || null;
+  }, [schedule]);
   const displayCourseStats = useMemo(() => courseStats.map((course) => {
     const adjusted = { ...course };
     correctionRequests
@@ -596,7 +610,7 @@ const StudentDashboard = ({ onLogout }) => {
           { label: 'Attendance Rate', value: `${attendanceTotals.rate}%`, note: 'Excellent standing', progress: attendanceTotals.rate, icon: TrendingUp },
           { label: 'Present Sessions', value: String(attendanceTotals.Present), note: 'View attendance', icon: CheckCircle2 },
           { label: 'Late Arrivals', value: String(attendanceTotals.Late), note: 'View details', icon: Clock3 },
-          { label: 'Next Class', value: '08:00', note: 'Web Development', icon: BookOpen },
+          { label: 'Next Class', value: nextStudentClass ? nextStudentClass.time.split(' - ')[0] : '—', note: nextStudentClass?.subject || 'No upcoming class', icon: BookOpen },
         ].map(({ label, value, note, progress, icon }) => (
           <div key={label} className={`${card} flex min-h-44 flex-col p-5`}>
             <div className="flex items-center gap-3">
