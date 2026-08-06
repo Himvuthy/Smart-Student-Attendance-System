@@ -281,7 +281,7 @@ const TeacherDashboard = ({ onLogout }) => {
     let cancelled = false;
     const refreshRequests = () => fetchExcuseRequests()
       .then((requests) => {
-        if (!cancelled) setExcuses((current) => requests.length || !current.length ? requests : current);
+        if (!cancelled) setExcuses(requests);
       })
       .catch(() => {});
     refreshRequests();

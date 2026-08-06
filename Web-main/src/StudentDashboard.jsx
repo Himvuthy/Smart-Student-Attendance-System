@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import AccountSecurity from './AccountSecurity';
 import ProfilePhotoEditor from './ProfilePhotoEditor';
-import { createExcuseRequest, EXCUSE_CACHE_KEY, fetchExcuseRequests, mergeExcuseCache, readExcuseCache } from './excuseRequests';
+import { createExcuseRequest, EXCUSE_CACHE_KEY, fetchExcuseRequests, mergeExcuseCache, readExcuseCache, writeExcuseCache } from './excuseRequests';
 import { ATTENDANCE_CORRECTIONS_KEY, readAttendanceCorrections, submitAttendanceCorrection } from './attendanceCorrections';
 import { OFFICIAL_TIMETABLE_KEY, readOfficialTimetable } from './officialTimetable';
 import { downloadCsv } from './csvExport';
@@ -324,7 +324,7 @@ const StudentDashboard = ({ onLogout }) => {
 
   useEffect(() => {
     localStorage.setItem('studentExcuseRequests', JSON.stringify(excuseRequests));
-    mergeExcuseCache(excuseRequests);
+    writeExcuseCache(excuseRequests);
   }, [excuseRequests]);
 
   useEffect(() => {
@@ -334,8 +334,7 @@ const StudentDashboard = ({ onLogout }) => {
       fetchExcuseRequests(currentUser.userid)
         .then((requests) => {
           if (!cancelled) {
-            setExcuseRequests((current) => requests.length || !current.length ? requests : current);
-            if (requests.length) mergeExcuseCache(requests);
+            setExcuseRequests(requests);
           }
         })
         .catch(() => {});
@@ -934,7 +933,8 @@ const StudentDashboard = ({ onLogout }) => {
       mergeExcuseCache([savedRequest]);
       setExcuseFeedback('Your absence request was submitted successfully.');
     } catch {
-      setExcuseFeedback('Request saved locally. It will sync when the server is available.');
+      setExcuseRequests((items) => items.filter((item) => item.id !== temporaryRequest.id));
+      setExcuseFeedback('The request could not be submitted. Please try again.');
     } finally {
       setExcuseSubmitting(false);
     }
