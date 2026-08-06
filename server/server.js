@@ -1538,18 +1538,10 @@ app.post('/api/hardware/enroll', async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Upsert the biometric record (if they already have this finger index, overwrite it)
-    await pool.query(`
-      INSERT INTO biometric (studentid, fingerindex, template, createdat)
-      VALUES ($1, $2, $3, NOW())
-      ON CONFLICT (studentid) DO UPDATE 
-      SET fingerindex = EXCLUDED.fingerindex, template = EXCLUDED.template, createdat = NOW()
-    `, [studentId, fingerIndex, template || '']);
-    // Note: The schema might not have a UNIQUE constraint on studentid for ON CONFLICT.
-    // If not, we'll do a DELETE first just to be safe.
-    
-    // Wait, let's just do a simple delete-then-insert to be perfectly safe across postgres versions
+    // Safely delete any existing record for this student or fingerprint ID to avoid unique constraint conflicts
     await pool.query('DELETE FROM biometric WHERE studentid = $1 OR fingerindex = $2', [studentId, fingerIndex]);
+    
+    // Insert the new fingerprint record
     await pool.query('INSERT INTO biometric (studentid, fingerindex, template, createdat) VALUES ($1, $2, $3, NOW())', [studentId, fingerIndex, template || '']);
 
     res.json({ success: true, message: 'Fingerprint enrolled successfully' });
